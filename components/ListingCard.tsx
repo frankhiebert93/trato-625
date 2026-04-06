@@ -34,6 +34,7 @@ export default function ListingCard({ item }: { item: any }) {
                     src={item.image_url}
                     alt={item.title}
                     className="w-full h-full object-cover"
+                    loading="lazy"
                 />
             </div>
 
