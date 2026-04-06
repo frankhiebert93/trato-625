@@ -49,7 +49,16 @@ export default function ListingCard({ item, onClick }: { item: any; onClick: () 
                 <p className={`${item.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-xl mt-0.5`}>
                     {formattedPrice}
                 </p>
-                <p className="text-[12px] text-gray-400 font-bold mt-2">{item.is_sold ? 'Ver artículo vendido' : 'Toca para ver detalles →'}</p>
+
+                {/* BILINGUAL TAP TO VIEW TEXT */}
+                <div className="mt-2 text-gray-400 flex flex-col">
+                    <p className="text-[12px] font-bold leading-tight">
+                        {item.is_sold ? 'Ver artículo vendido' : 'Toca para ver detalles →'}
+                    </p>
+                    <p className="text-[10px] font-medium leading-tight">
+                        {item.is_sold ? 'View sold item' : 'Tap to see details →'}
+                    </p>
+                </div>
             </div>
         </div>
     );
