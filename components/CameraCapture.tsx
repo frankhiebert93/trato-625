@@ -37,10 +37,18 @@ export default function PostForm() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (files.length === 0 || !title || !price || !phone || !firstName) {
+
+        // STRICT NAME CHECK
+        if (!firstName.trim() || !lastName.trim()) {
+            alert('El nombre y apellido son obligatorios. / First and last name are mandatory.');
+            return;
+        }
+
+        if (files.length === 0 || !title || !price || !phone) {
             alert('Por favor llena los campos requeridos y toma al menos 1 foto.');
             return;
         }
+
         setUploading(true);
 
         try {
@@ -66,7 +74,6 @@ export default function PostForm() {
                 image_urls: uploadedUrls,
                 seller_phone: phone,
                 category
-                // Removed safe_zone from here
             }]);
 
             if (dbError) throw dbError;
@@ -89,13 +96,13 @@ export default function PostForm() {
             </div>
 
             <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Datos Privados (Solo Admin)</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Datos Privados / Private Data (Solo Admin)</p>
                 <div className="flex gap-3">
                     <div className="flex-1">
-                        <input type="text" placeholder="Nombre" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
+                        <input type="text" placeholder="Nombre (Obligatorio)" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
                     </div>
                     <div className="flex-1">
-                        <input type="text" placeholder="Apellido" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" />
+                        <input type="text" placeholder="Apellido (Obligatorio)" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
                     </div>
                 </div>
             </div>
