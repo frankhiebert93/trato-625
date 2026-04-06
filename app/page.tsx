@@ -87,7 +87,8 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
-        <div className="sticky top-0 bg-white/90 backdrop-blur-md px-4 py-4 flex items-center shadow-sm z-10">
+        {/* SAFE AREA PADDING ADDED TO MODAL HEADER */}
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
           <button onClick={() => setSelectedItem(null)} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
@@ -108,16 +109,19 @@ export default function Home() {
         </div>
 
         {images.length > 1 && !selectedItem.is_sold && (
-          <p className="text-center text-xs font-bold text-gray-500 mt-2">Desliza para ver más fotos ↔</p>
+          <div className="text-center mt-3 flex flex-col items-center">
+            <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más fotos ↔</p>
+            <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more photos ↔</p>
+          </div>
         )}
 
-        <div className="p-5 pb-32">
+        <div className="p-5 pb-40">
           <div className="flex justify-between items-start">
             <h1 className={`text-2xl font-black leading-tight ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
               {selectedItem.title}
             </h1>
             {selectedItem.is_verified && (
-              <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 text-[10px] font-bold">
+              <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 text-[10px] font-bold shrink-0 ml-2">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
                 Verificado
               </span>
@@ -131,8 +135,8 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-8 flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)]">
-          {/* CONDITIONALLY RENDER WHATSAPP OR SOLD BUTTON */}
+        {/* SAFE AREA PADDING ADDED TO MODAL BOTTOM BAR */}
+        <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)]">
           {selectedItem.is_sold ? (
             <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
               <span className="text-sm leading-none">Artículo Vendido</span>
@@ -153,10 +157,11 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-24">
+    <main className="min-h-screen bg-gray-50 pb-32">
       {renderDetailView()}
 
-      <header className="bg-white shadow-sm pt-6 pb-3 px-4 sticky top-0 z-10">
+      {/* SAFE AREA PADDING ADDED TO MAIN HEADER + MADE IT STICKY AGAIN */}
+      <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-10 border-b border-gray-100">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight text-center mb-4">Trato 625</h1>
 
         {activeTab === 'feed' && (
@@ -213,7 +218,8 @@ export default function Home() {
         )}
       </div>
 
-      <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-6 max-w-md left-1/2 -translate-x-1/2 z-20 shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
+      {/* SAFE AREA PADDING ADDED TO MAIN BOTTOM NAV */}
+      <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] max-w-md left-1/2 -translate-x-1/2 z-20 shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
         <button onClick={() => setActiveTab('feed')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'feed' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
           <span className="font-black text-sm leading-tight">Mercado</span>
           <span className="text-[10px] font-medium leading-tight">Market</span>
