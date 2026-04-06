@@ -87,7 +87,6 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
-        {/* SAFE AREA PADDING ADDED TO MODAL HEADER */}
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
           <button onClick={() => setSelectedItem(null)} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -135,7 +134,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* SAFE AREA PADDING ADDED TO MODAL BOTTOM BAR */}
         <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)]">
           {selectedItem.is_sold ? (
             <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
@@ -160,8 +158,8 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 pb-32">
       {renderDetailView()}
 
-      {/* SAFE AREA PADDING ADDED TO MAIN HEADER + MADE IT STICKY AGAIN */}
-      <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-10 border-b border-gray-100">
+      {/* FIXED: Bumped to z-30 so it acts as a solid roof over the scrolling pictures */}
+      <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-30 border-b border-gray-100">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight text-center mb-4">Trato 625</h1>
 
         {activeTab === 'feed' && (
@@ -218,7 +216,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* SAFE AREA PADDING ADDED TO MAIN BOTTOM NAV */}
       <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] max-w-md left-1/2 -translate-x-1/2 z-20 shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
         <button onClick={() => setActiveTab('feed')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'feed' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
           <span className="font-black text-sm leading-tight">Mercado</span>
