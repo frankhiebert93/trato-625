@@ -25,7 +25,6 @@ export default function Home() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  // NEW: State for the detail modal
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   useEffect(() => {
@@ -81,7 +80,6 @@ export default function Home() {
     } catch (err) { console.error(err); }
   };
 
-  // The Detail View Overlay Component
   const renderDetailView = () => {
     if (!selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
@@ -89,29 +87,35 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
-        {/* Sticky Header with Back Button */}
         <div className="sticky top-0 bg-white/90 backdrop-blur-md px-4 py-4 flex items-center shadow-sm z-10">
           <button onClick={() => setSelectedItem(null)} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
           </button>
-          <h2 className="ml-4 font-black text-lg text-slate-900 truncate">{selectedItem.title}</h2>
         </div>
 
-        {/* Scrollable Gallery */}
-        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900">
+        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
-            <img key={i} src={img} className="w-full h-[50vh] object-contain snap-center shrink-0" alt={`img-${i}`} />
+            <img key={i} src={img} className={`w-full h-[50vh] object-contain snap-center shrink-0 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`img-${i}`} />
           ))}
+          {selectedItem.is_sold && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <span className="bg-red-600/90 text-white font-black text-4xl tracking-widest px-8 py-3 transform -rotate-12 border-4 border-red-800 shadow-2xl">
+                VENDIDO
+              </span>
+            </div>
+          )}
         </div>
 
-        {images.length > 1 && (
+        {images.length > 1 && !selectedItem.is_sold && (
           <p className="text-center text-xs font-bold text-gray-500 mt-2">Desliza para ver más fotos ↔</p>
         )}
 
         <div className="p-5 pb-32">
           <div className="flex justify-between items-start">
-            <h1 className="text-2xl font-black text-slate-900 leading-tight">{selectedItem.title}</h1>
+            <h1 className={`text-2xl font-black leading-tight ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
+              {selectedItem.title}
+            </h1>
             {selectedItem.is_verified && (
               <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 text-[10px] font-bold">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
@@ -119,17 +123,7 @@ export default function Home() {
               </span>
             )}
           </div>
-          <p className="text-blue-600 font-black text-3xl mt-1">{formattedPrice}</p>
-
-          {selectedItem.safe_zone && (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
-              <span className="text-2xl">📍</span>
-              <div>
-                <p className="font-bold text-green-800 text-sm">Punto Seguro Disponible</p>
-                <p className="text-xs text-green-600">El vendedor acepta entregar en lugares públicos.</p>
-              </div>
-            </div>
-          )}
+          <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1`}>{formattedPrice}</p>
 
           <div className="mt-6 border-t border-gray-100 pt-6">
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
@@ -137,11 +131,19 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Sticky Bottom Action Bar */}
         <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-8 flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)]">
-          <button onClick={() => handleWhatsAppClick(selectedItem)} className="flex-[2] bg-[#25D366] hover:bg-[#1DA851] text-white py-3.5 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2 text-lg">
-            WhatsApp
-          </button>
+          {/* CONDITIONALLY RENDER WHATSAPP OR SOLD BUTTON */}
+          {selectedItem.is_sold ? (
+            <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
+              <span className="text-sm leading-none">Artículo Vendido</span>
+              <span className="text-[10px] font-medium mt-1 leading-none">Item Sold</span>
+            </div>
+          ) : (
+            <button onClick={() => handleWhatsAppClick(selectedItem)} className="flex-[2] bg-[#25D366] hover:bg-[#1DA851] text-white py-3.5 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2 text-lg">
+              WhatsApp
+            </button>
+          )}
+
           <button onClick={() => handleShare(selectedItem)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 py-3.5 rounded-xl font-bold transition-all flex flex-col items-center justify-center">
             <span className="text-sm leading-none">Compartir</span>
           </button>
@@ -152,7 +154,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
-      {/* Conditionally render the modal overlay over EVERYTHING */}
       {renderDetailView()}
 
       <header className="bg-white shadow-sm pt-6 pb-3 px-4 sticky top-0 z-10">
