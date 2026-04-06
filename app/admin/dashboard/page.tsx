@@ -30,7 +30,7 @@ export default function AdminDashboard() {
         else setListings(listings.map(item => item.id === id ? { ...item, is_verified: !currentStatus } : item));
     }
 
-    // THE NEW TOGGLE SOLD FUNCTION
+    // THE TOGGLE SOLD FUNCTION
     async function toggleSold(id: string, currentStatus: boolean) {
         const { error } = await supabase.from('listings').update({ is_sold: !currentStatus }).eq('id', id);
         if (error) alert("Error: " + error.message);
@@ -45,6 +45,7 @@ export default function AdminDashboard() {
 
         setListings(listings.filter(listing => listing.id !== id));
 
+        // Upgraded to delete multiple images to save storage
         const imagesToDelete = item.image_urls || (item.image_url ? [item.image_url] : []);
         const fileNames = imagesToDelete.map((url: string) => url.split('/').pop()).filter(Boolean);
 
