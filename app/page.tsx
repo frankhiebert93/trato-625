@@ -30,6 +30,9 @@ export default function Home() {
   const [verifyPhone, setVerifyPhone] = useState('');
   const [soldLoading, setSoldLoading] = useState(false);
 
+  // NEW: State to control the full-screen image gallery
+  const [showFullscreen, setShowFullscreen] = useState(false);
+
   useEffect(() => {
     if (activeTab === 'feed') {
       setPage(0);
@@ -108,6 +111,43 @@ export default function Home() {
     }
   };
 
+  // NEW: THE FULLSCREEN THEATER MODE COMPONENT
+  const renderFullscreenGallery = () => {
+    if (!showFullscreen || !selectedItem) return null;
+    const images = selectedItem.image_urls || [selectedItem.image_url];
+
+    return (
+      <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+        <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-50">
+          <button
+            onClick={() => setShowFullscreen(false)}
+            className="bg-white/20 hover:bg-white/30 text-white rounded-full py-2 px-4 backdrop-blur-md font-bold text-sm flex items-center gap-2 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            Cerrar
+          </button>
+        </div>
+
+        <div className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
+          {images.map((img: string, i: number) => (
+            <div key={i} className="w-full h-full shrink-0 snap-center flex flex-col items-center justify-center p-2 relative">
+              <img
+                src={img}
+                className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
+                alt={`full-${i}`}
+              />
+              {images.length > 1 && (
+                <div className="absolute bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 bg-black/60 text-white font-bold text-xs px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
+                  {i + 1} / {images.length}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderDetailView = () => {
     if (!selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
@@ -116,21 +156,31 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
-          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
+          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
           </button>
         </div>
 
-        {/* FIXED IMAGE CAROUSEL CONTAINER */}
-        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-black relative">
+        {/* UPDATED: Shrunk container to 30vh and added expand icon */}
+        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
-            <div key={i} className="w-full h-[40vh] shrink-0 snap-center flex items-center justify-center p-2 relative">
+            <div
+              key={i}
+              onClick={() => setShowFullscreen(true)}
+              className="w-full h-[30vh] shrink-0 snap-center flex items-center justify-center p-2 relative cursor-pointer group"
+            >
               <img
                 src={img}
-                className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
+                className={`max-w-full max-h-full object-contain transition-transform group-active:scale-95 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
                 alt={`img-${i}`}
               />
+
+              {!selectedItem.is_sold && (
+                <div className="absolute bottom-3 right-3 bg-black/60 text-white p-2 rounded-full backdrop-blur-sm shadow-lg pointer-events-none">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+                </div>
+              )}
             </div>
           ))}
           {selectedItem.is_sold && (
@@ -144,8 +194,8 @@ export default function Home() {
 
         {images.length > 1 && !selectedItem.is_sold && (
           <div className="text-center mt-3 flex flex-col items-center">
-            <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más fotos ↔</p>
-            <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more photos ↔</p>
+            <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más o toca para ampliar ↔</p>
+            <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more or tap to expand ↔</p>
           </div>
         )}
 
@@ -255,7 +305,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* INSTALLATION INSTRUCTIONS BLOCK */}
       <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
         <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
         <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
@@ -283,7 +332,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-32">
+      {/* RENDER BOTH MODALS */}
       {renderDetailView()}
+      {renderFullscreenGallery()}
 
       <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-30 border-b border-gray-100">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight text-center mb-4">Trato 625</h1>
