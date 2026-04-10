@@ -24,13 +24,6 @@ export default function AdminDashboard() {
         setLoading(false);
     }
 
-    async function toggleVerify(id: string, currentStatus: boolean) {
-        const { error } = await supabase.from('listings').update({ is_verified: !currentStatus }).eq('id', id);
-        if (error) alert("Error: " + error.message);
-        else setListings(listings.map(item => item.id === id ? { ...item, is_verified: !currentStatus } : item));
-    }
-
-    // THE TOGGLE SOLD FUNCTION
     async function toggleSold(id: string, currentStatus: boolean) {
         const { error } = await supabase.from('listings').update({ is_sold: !currentStatus }).eq('id', id);
         if (error) alert("Error: " + error.message);
@@ -45,7 +38,6 @@ export default function AdminDashboard() {
 
         setListings(listings.filter(listing => listing.id !== id));
 
-        // Upgraded to delete multiple images to save storage
         const imagesToDelete = item.image_urls || (item.image_url ? [item.image_url] : []);
         const fileNames = imagesToDelete.map((url: string) => url.split('/').pop()).filter(Boolean);
 
@@ -89,7 +81,6 @@ export default function AdminDashboard() {
                                     <div className="flex-grow w-full text-center sm:text-left">
                                         <h3 className={`font-bold flex flex-wrap items-center justify-center sm:justify-start gap-2 ${item.is_sold ? 'text-gray-500 line-through' : 'text-slate-900'}`}>
                                             {item.title}
-                                            {item.is_verified && <span className="text-blue-600 text-[10px] font-bold bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Verif</span>}
                                         </h3>
 
                                         <p className="text-xs text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded mt-1 mb-1 border border-slate-200">
@@ -100,14 +91,6 @@ export default function AdminDashboard() {
                                     </div>
 
                                     <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
-                                        <button
-                                            onClick={() => toggleVerify(item.id, item.is_verified)}
-                                            className={`font-bold px-3 py-2 rounded-lg text-xs transition-colors ${item.is_verified ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                                        >
-                                            {item.is_verified ? 'Unverify' : 'Verify'}
-                                        </button>
-
-                                        {/* THE SOLD BUTTON */}
                                         <button
                                             onClick={() => toggleSold(item.id, item.is_sold)}
                                             className={`font-bold px-3 py-2 rounded-lg text-xs transition-colors ${item.is_sold ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}

@@ -26,6 +26,9 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true);
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [showSoldPrompt, setShowSoldPrompt] = useState(false);
+  const [verifyPhone, setVerifyPhone] = useState('');
+  const [soldLoading, setSoldLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'feed') {
@@ -80,6 +83,34 @@ export default function Home() {
     } catch (err) { console.error(err); }
   };
 
+  // NEW: Function to check phone number and mark as sold
+  const handleMarkSoldBySeller = async () => {
+    if (!selectedItem) return;
+
+    // Clean both numbers to compare just the digits
+    const cleanInput = verifyPhone.replace(/\D/g, '');
+    const cleanDBPhone = selectedItem.seller_phone.replace(/\D/g, '');
+
+    if (cleanInput === cleanDBPhone) {
+      setSoldLoading(true);
+      const { error } = await supabase.from('listings').update({ is_sold: true }).eq('id', selectedItem.id);
+
+      if (!error) {
+        // Update local UI
+        setSelectedItem({ ...selectedItem, is_sold: true });
+        setListings(listings.map(item => item.id === selectedItem.id ? { ...item, is_sold: true } : item));
+        setShowSoldPrompt(false);
+        setVerifyPhone('');
+        alert("¡Felicidades por tu venta! El artículo ha sido marcado como vendido. / Item marked as sold!");
+      } else {
+        alert("Hubo un error de conexión.");
+      }
+      setSoldLoading(false);
+    } else {
+      alert("El número no coincide con el que se usó para publicar este artículo. / Number does not match.");
+    }
+  };
+
   const renderDetailView = () => {
     if (!selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
@@ -88,7 +119,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
-          <button onClick={() => setSelectedItem(null)} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
+          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
           </button>
@@ -119,12 +150,6 @@ export default function Home() {
             <h1 className={`text-2xl font-black leading-tight ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
               {selectedItem.title}
             </h1>
-            {selectedItem.is_verified && (
-              <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md border border-blue-100 flex items-center gap-1 text-[10px] font-bold shrink-0 ml-2">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                Verificado
-              </span>
-            )}
           </div>
           <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1`}>{formattedPrice}</p>
 
@@ -132,9 +157,41 @@ export default function Home() {
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
             <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedItem.description || 'Sin descripción.'}</p>
           </div>
+
+          {/* NEW: SELLER TOOLS SECTION */}
+          {!selectedItem.is_sold && (
+            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <h4 className="font-bold text-slate-800 text-sm mb-2">¿Eres el vendedor? / Are you the seller?</h4>
+
+              {!showSoldPrompt ? (
+                <button onClick={() => setShowSoldPrompt(true)} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg border border-red-100 transition-colors">
+                  Marcar como Vendido
+                </button>
+              ) : (
+                <div className="space-y-3 mt-3">
+                  <p className="text-xs text-slate-500 font-medium">Ingresa el número de WhatsApp que usaste para publicar este artículo para confirmar que es tuyo.</p>
+                  <input
+                    type="tel"
+                    placeholder="Número de WhatsApp..."
+                    value={verifyPhone}
+                    onChange={(e) => setVerifyPhone(e.target.value)}
+                    className="w-full border rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={handleMarkSoldBySeller} disabled={soldLoading} className="bg-red-600 text-white font-bold px-4 py-2 rounded-lg text-sm flex-1">
+                      {soldLoading ? 'Verificando...' : 'Confirmar Venta'}
+                    </button>
+                    <button onClick={() => { setShowSoldPrompt(false); setVerifyPhone(''); }} className="bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-lg text-sm">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)]">
+        <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] z-20">
           {selectedItem.is_sold ? (
             <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
               <span className="text-sm leading-none">Artículo Vendido</span>
@@ -158,7 +215,6 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50 pb-32">
       {renderDetailView()}
 
-      {/* FIXED: Bumped to z-30 so it acts as a solid roof over the scrolling pictures */}
       <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-30 border-b border-gray-100">
         <h1 className="text-3xl font-black text-slate-900 tracking-tight text-center mb-4">Trato 625</h1>
 

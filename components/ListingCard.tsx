@@ -11,7 +11,6 @@ export default function ListingCard({ item, onClick }: { item: any; onClick: () 
             <div className="w-full h-56 bg-gray-200 relative overflow-hidden">
                 <img src={images[0]} alt={item.title} className={`w-full h-full object-cover ${item.is_sold ? 'grayscale opacity-80' : ''}`} loading="lazy" />
 
-                {/* PUBLIC VENDIDO STAMP */}
                 {item.is_sold && (
                     <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center pointer-events-none">
                         <div className="bg-red-600 text-white px-8 py-2 transform -rotate-12 border-4 border-red-800 shadow-2xl flex flex-col items-center justify-center">
@@ -21,7 +20,6 @@ export default function ListingCard({ item, onClick }: { item: any; onClick: () 
                     </div>
                 )}
 
-                {/* FIXED: Removed z-20 so it stops floating over the header */}
                 {photoCount > 1 && !item.is_sold && (
                     <span className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-sm flex items-center gap-1 z-10">
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -29,7 +27,6 @@ export default function ListingCard({ item, onClick }: { item: any; onClick: () 
                     </span>
                 )}
 
-                {/* FIXED: Removed z-20 so it stops floating over the header */}
                 {item.category && !item.is_sold && (
                     <span className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-sm text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-sm z-10">
                         {item.category}
@@ -42,11 +39,6 @@ export default function ListingCard({ item, onClick }: { item: any; onClick: () 
                     <h3 className={`font-bold text-lg truncate pr-2 ${item.is_sold ? 'text-gray-500 line-through' : 'text-slate-900'}`}>
                         {item.title}
                     </h3>
-                    {item.is_verified && (
-                        <span className="shrink-0 flex items-center gap-1 bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md border border-blue-100">
-                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                        </span>
-                    )}
                 </div>
                 <p className={`${item.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-xl mt-0.5`}>
                     {formattedPrice}
