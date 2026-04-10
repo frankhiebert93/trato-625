@@ -16,7 +16,7 @@ const CATEGORIES = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'feed' | 'post' | 'guidelines'>('feed'); // ADDED GUIDELINES TAB
+  const [activeTab, setActiveTab] = useState<'feed' | 'post' | 'guidelines'>('feed');
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -207,7 +207,6 @@ export default function Home() {
     );
   };
 
-  // NEW: RENDER GUIDELINES VIEW
   const renderGuidelinesView = () => (
     <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
       <div className="text-center border-b border-gray-100 pb-4">
@@ -249,8 +248,28 @@ export default function Home() {
         </div>
       </div>
 
+      {/* NEW: INSTALLATION INSTRUCTIONS BLOCK */}
+      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
+        <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
+        <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm font-bold text-slate-800">🍎 iPhone (Safari)</p>
+            <p className="text-xs text-slate-600 mt-0.5">Toca el botón de compartir (cuadro con flecha) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla de inicio"</span>.</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the share button (square with arrow) and select <span className="font-bold">"Add to Home Screen"</span>.</p>
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-slate-800">🤖 Android (Chrome)</p>
+            <p className="text-xs text-slate-600 mt-0.5">Toca el letrero de "Instalar aplicación" abajo, o abre el menú (3 puntos) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla principal"</span>.</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the "Install App" banner, or open the menu (3 dots) and select <span className="font-bold">"Add to Home screen"</span>.</p>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-blue-50 p-4 rounded-lg text-center mt-6 border border-blue-100">
-        <p className="text-sm font-bold text-blue-800">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
+        <p className="text-[11px] font-bold text-blue-800 uppercase tracking-wide">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
       </div>
     </div>
   );
@@ -325,7 +344,6 @@ export default function Home() {
           <span className="font-black text-sm leading-tight">Vender</span>
           <span className="text-[10px] font-medium leading-tight">Sell</span>
         </button>
-        {/* NEW: GUIDELINES BUTTON */}
         <button onClick={() => setActiveTab('guidelines')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'guidelines' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
           <span className="font-black text-sm leading-tight">Reglas</span>
           <span className="text-[10px] font-medium leading-tight">Rules</span>
