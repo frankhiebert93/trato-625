@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/react"; // NEW: Analytics Import
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next"; // NEW: Speed Insights Import
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -35,8 +36,9 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         {children}
-        {/* NEW: Analytics Tracker */}
         <Analytics />
+        {/* NEW: Speed Insights Tracker */}
+        <SpeedInsights />
       </body>
     </html>
   );
