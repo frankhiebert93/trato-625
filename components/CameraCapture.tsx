@@ -22,6 +22,7 @@ export default function PostForm() {
     const [description, setDescription] = useState('');
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [agreed, setAgreed] = useState(false); // NEW STATE FOR CHECKBOX
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -38,9 +39,14 @@ export default function PostForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // STRICT NAME CHECK
         if (!firstName.trim() || !lastName.trim()) {
             alert('El nombre y apellido son obligatorios. / First and last name are mandatory.');
+            return;
+        }
+
+        // NEW CHECK FOR GUIDELINES
+        if (!agreed) {
+            alert('Debes aceptar las reglas de la comunidad para publicar. / You must agree to the community guidelines to post.');
             return;
         }
 
@@ -80,7 +86,7 @@ export default function PostForm() {
 
             alert('¡Artículo publicado! / Item successfully posted!');
             setFirstName(''); setLastName(''); setTitle(''); setPrice(''); setPhone('');
-            setDescription(''); setCategory(CATEGORIES[0].val); setFiles([]);
+            setDescription(''); setCategory(CATEGORIES[0].val); setFiles([]); setAgreed(false);
         } catch (error: any) {
             alert('Error: ' + (error.message || 'Failed to post item.'));
         } finally {
@@ -89,7 +95,7 @@ export default function PostForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-xl shadow-lg p-6 space-y-5 text-slate-800">
+        <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-xl shadow-lg p-6 space-y-5 text-slate-800 mb-8">
             <div className="text-center border-b border-gray-100 pb-4 mb-2">
                 <h2 className="text-xl font-black text-slate-900">Vender un Artículo</h2>
                 <p className="text-sm text-slate-400 font-medium -mt-1">Sell an Item</p>
@@ -158,9 +164,26 @@ export default function PostForm() {
                 </div>
             </div>
 
-            <button type="submit" disabled={uploading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-lg mt-6 disabled:bg-gray-400 transition-all shadow-md flex flex-col items-center justify-center">
+            {/* NEW: AGREEMENT CHECKBOX */}
+            <div className="flex items-start gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                <div className="flex items-center h-5 mt-1">
+                    <input
+                        type="checkbox"
+                        id="agree"
+                        checked={agreed}
+                        onChange={(e) => setAgreed(e.target.checked)}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                </div>
+                <label htmlFor="agree" className="flex flex-col cursor-pointer">
+                    <span className="text-sm font-bold text-slate-800 leading-tight">He leído y acepto las Reglas de la Comunidad.</span>
+                    <span className="text-[10px] font-medium text-slate-500 mt-0.5">I have read and agree to the Community Guidelines.</span>
+                </label>
+            </div>
+
+            <button type="submit" disabled={uploading} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-lg mt-6 disabled:bg-gray-400 transition-all shadow-md flex flex-col items-center justify-center">
                 <span className="font-bold text-base leading-none">{uploading ? 'Publicando...' : 'Publicar Artículo'}</span>
-                {!uploading && <span className="text-[11px] font-medium text-blue-200 mt-1 leading-none">Post Item</span>}
+                {!uploading && <span className="text-[11px] font-medium text-slate-300 mt-1 leading-none">Post Item</span>}
             </button>
         </form>
     );

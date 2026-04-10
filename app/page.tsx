@@ -16,7 +16,7 @@ const CATEGORIES = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'feed' | 'post'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'post' | 'guidelines'>('feed'); // ADDED GUIDELINES TAB
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -83,11 +83,9 @@ export default function Home() {
     } catch (err) { console.error(err); }
   };
 
-  // NEW: Function to check phone number and mark as sold
   const handleMarkSoldBySeller = async () => {
     if (!selectedItem) return;
 
-    // Clean both numbers to compare just the digits
     const cleanInput = verifyPhone.replace(/\D/g, '');
     const cleanDBPhone = selectedItem.seller_phone.replace(/\D/g, '');
 
@@ -96,7 +94,6 @@ export default function Home() {
       const { error } = await supabase.from('listings').update({ is_sold: true }).eq('id', selectedItem.id);
 
       if (!error) {
-        // Update local UI
         setSelectedItem({ ...selectedItem, is_sold: true });
         setListings(listings.map(item => item.id === selectedItem.id ? { ...item, is_sold: true } : item));
         setShowSoldPrompt(false);
@@ -158,7 +155,6 @@ export default function Home() {
             <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedItem.description || 'Sin descripción.'}</p>
           </div>
 
-          {/* NEW: SELLER TOOLS SECTION */}
           {!selectedItem.is_sold && (
             <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4">
               <h4 className="font-bold text-slate-800 text-sm mb-2">¿Eres el vendedor? / Are you the seller?</h4>
@@ -211,6 +207,54 @@ export default function Home() {
     );
   };
 
+  // NEW: RENDER GUIDELINES VIEW
+  const renderGuidelinesView = () => (
+    <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
+      <div className="text-center border-b border-gray-100 pb-4">
+        <h2 className="text-2xl font-black text-slate-900">Reglas de la Comunidad</h2>
+        <p className="text-sm text-slate-500 font-bold">Community Guidelines</p>
+      </div>
+
+      <div className="space-y-6">
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>1.</span> Solo Comercio Local
+          </h3>
+          <p className="text-sm font-medium mt-1">Trato 625 es estrictamente para artículos en Cuauhtémoc y sus alrededores. Si no estás en la zona local, tu publicación será eliminada.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Local items only. Trato 625 is for Cuauhtémoc and surrounding areas. Non-local listings will be deleted.</p>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>2.</span> Artículos Prohibidos
+          </h3>
+          <p className="text-sm font-medium mt-1">Cero tolerancia a la venta de artículos ilegales, armas de fuego, drogas, o contenido explícito. Publicar esto resultará en un bloqueo permanente.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Zero tolerance for illegal items, firearms, drugs, or explicit content. Violators will be permanently banned.</p>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>3.</span> Respeto Mutuo
+          </h3>
+          <p className="text-sm font-medium mt-1">Sé honesto con las descripciones de tus artículos y respetuoso al contactar a otros usuarios. Evita el spam.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Be honest with item descriptions and respectful when messaging others. No spamming.</p>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>4.</span> Marca Tus Ventas
+          </h3>
+          <p className="text-sm font-medium mt-1">Es tu responsabilidad mantener limpio el mercado. Cuando vendas tu artículo, usa tu número de teléfono para marcarlo como "VENDIDO" para que la gente deje de contactarte.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Keep the market clean. When your item sells, use your phone number to mark it as "SOLD".</p>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 p-4 rounded-lg text-center mt-6 border border-blue-100">
+        <p className="text-sm font-bold text-blue-800">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
+      </div>
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-gray-50 pb-32">
       {renderDetailView()}
@@ -249,9 +293,9 @@ export default function Home() {
       </header>
 
       <div className="p-4 max-w-md mx-auto">
-        {activeTab === 'post' ? (
-          <PostForm />
-        ) : (
+        {activeTab === 'post' && <PostForm />}
+        {activeTab === 'guidelines' && renderGuidelinesView()}
+        {activeTab === 'feed' && (
           <div className="space-y-4">
             {listings.length === 0 && !loading ? (
               <div className="text-center mt-12">
@@ -280,6 +324,11 @@ export default function Home() {
         <button onClick={() => setActiveTab('post')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'post' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
           <span className="font-black text-sm leading-tight">Vender</span>
           <span className="text-[10px] font-medium leading-tight">Sell</span>
+        </button>
+        {/* NEW: GUIDELINES BUTTON */}
+        <button onClick={() => setActiveTab('guidelines')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'guidelines' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
+          <span className="font-black text-sm leading-tight">Reglas</span>
+          <span className="text-[10px] font-medium leading-tight">Rules</span>
         </button>
       </nav>
     </main>
