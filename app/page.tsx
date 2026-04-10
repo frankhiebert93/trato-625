@@ -122,9 +122,16 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
+        {/* FIXED IMAGE CAROUSEL CONTAINER */}
+        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-black relative">
           {images.map((img: string, i: number) => (
-            <img key={i} src={img} className={`w-full h-[50vh] object-contain snap-center shrink-0 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`img-${i}`} />
+            <div key={i} className="w-full h-[40vh] shrink-0 snap-center flex items-center justify-center p-2 relative">
+              <img
+                src={img}
+                className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
+                alt={`img-${i}`}
+              />
+            </div>
           ))}
           {selectedItem.is_sold && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -248,7 +255,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* NEW: INSTALLATION INSTRUCTIONS BLOCK */}
+      {/* INSTALLATION INSTRUCTIONS BLOCK */}
       <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
         <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
         <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
