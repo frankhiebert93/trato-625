@@ -30,7 +30,6 @@ export default function Home() {
   const [verifyPhone, setVerifyPhone] = useState('');
   const [soldLoading, setSoldLoading] = useState(false);
 
-  // NEW: State to control the full-screen image gallery
   const [showFullscreen, setShowFullscreen] = useState(false);
 
   useEffect(() => {
@@ -154,7 +153,6 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
-        {/* FIXED: Added shrink-0 so the back button is immune to being squashed */}
         <div className="sticky top-0 shrink-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
           <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -162,7 +160,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* FIXED: Added shrink-0 so the entire photo area acts like a brick wall against long text */}
         <div className="w-full shrink-0 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
             <div
@@ -199,7 +196,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* FIXED: Added flex-grow so this section expands safely without squashing the ones above */}
         <div className="p-5 pb-40 w-full flex-grow">
           <div className="flex justify-between items-start w-full">
             <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
@@ -337,7 +333,10 @@ export default function Home() {
       {renderFullscreenGallery()}
 
       <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-30 border-b border-gray-100">
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight text-center mb-4">Trato 625</h1>
+        <div className="text-center mb-4">
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Trato 625</h1>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1.5">Cuauhtémoc, Chihuahua MX</p>
+        </div>
 
         {activeTab === 'feed' && (
           <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
