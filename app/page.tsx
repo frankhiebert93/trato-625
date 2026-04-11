@@ -209,7 +209,8 @@ export default function Home() {
 
           <div className="mt-6 border-t border-gray-100 pt-6">
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedItem.description || 'Sin descripción.'}</p>
+            {/* FIXED: Added 'break-words' to this paragraph tag */}
+            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words">{selectedItem.description || 'Sin descripción.'}</p>
           </div>
 
           {!selectedItem.is_sold && (
