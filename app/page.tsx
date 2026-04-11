@@ -111,7 +111,6 @@ export default function Home() {
     }
   };
 
-  // NEW: THE FULLSCREEN THEATER MODE COMPONENT
   const renderFullscreenGallery = () => {
     if (!showFullscreen || !selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
@@ -154,7 +153,8 @@ export default function Home() {
     const formattedPrice = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(selectedItem.price);
 
     return (
-      <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
+      // FIXED: Added overflow-x-hidden and w-full to absolutely prevent horizontal stretching
+      <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
           <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -162,7 +162,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* UPDATED: Shrunk container to 30vh and added expand icon */}
         <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
             <div
@@ -199,22 +198,23 @@ export default function Home() {
           </div>
         )}
 
-        <div className="p-5 pb-40">
-          <div className="flex justify-between items-start">
-            <h1 className={`text-2xl font-black leading-tight ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
+        {/* FIXED: Added w-full and overflow-hidden to the text container */}
+        <div className="p-5 pb-40 w-full overflow-hidden">
+          <div className="flex justify-between items-start w-full">
+            <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
               {selectedItem.title}
             </h1>
           </div>
           <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1`}>{formattedPrice}</p>
 
-          <div className="mt-6 border-t border-gray-100 pt-6">
+          <div className="mt-6 border-t border-gray-100 pt-6 w-full">
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
-            {/* FIXED: Added 'break-words' to this paragraph tag */}
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words">{selectedItem.description || 'Sin descripción.'}</p>
+            {/* FIXED: Added break-all to forcefully chop long unbroken text */}
+            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words break-all">{selectedItem.description || 'Sin descripción.'}</p>
           </div>
 
           {!selectedItem.is_sold && (
-            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4 w-full">
               <h4 className="font-bold text-slate-800 text-sm mb-2">¿Eres el vendedor? / Are you the seller?</h4>
 
               {!showSoldPrompt ? (
@@ -222,7 +222,7 @@ export default function Home() {
                   Marcar como Vendido
                 </button>
               ) : (
-                <div className="space-y-3 mt-3">
+                <div className="space-y-3 mt-3 w-full">
                   <p className="text-xs text-slate-500 font-medium">Ingresa el número de WhatsApp que usaste para publicar este artículo para confirmar que es tuyo.</p>
                   <input
                     type="tel"
@@ -231,7 +231,7 @@ export default function Home() {
                     onChange={(e) => setVerifyPhone(e.target.value)}
                     className="w-full border rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   />
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full">
                     <button onClick={handleMarkSoldBySeller} disabled={soldLoading} className="bg-red-600 text-white font-bold px-4 py-2 rounded-lg text-sm flex-1">
                       {soldLoading ? 'Verificando...' : 'Confirmar Venta'}
                     </button>
@@ -333,7 +333,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-32">
-      {/* RENDER BOTH MODALS */}
       {renderDetailView()}
       {renderFullscreenGallery()}
 
