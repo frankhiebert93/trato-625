@@ -154,14 +154,16 @@ export default function Home() {
 
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
+        {/* FIXED: Added shrink-0 so the back button is immune to being squashed */}
+        <div className="sticky top-0 shrink-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
           <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
           </button>
         </div>
 
-        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
+        {/* FIXED: Added shrink-0 so the entire photo area acts like a brick wall against long text */}
+        <div className="w-full shrink-0 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
             <div
               key={i}
@@ -191,14 +193,14 @@ export default function Home() {
         </div>
 
         {images.length > 1 && !selectedItem.is_sold && (
-          <div className="text-center mt-3 flex flex-col items-center">
+          <div className="text-center mt-3 shrink-0 flex flex-col items-center">
             <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más o toca para ampliar ↔</p>
             <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more or tap to expand ↔</p>
           </div>
         )}
 
-        {/* FIXED: Removed overflow-hidden from this container so you can scroll vertically! */}
-        <div className="p-5 pb-40 w-full">
+        {/* FIXED: Added flex-grow so this section expands safely without squashing the ones above */}
+        <div className="p-5 pb-40 w-full flex-grow">
           <div className="flex justify-between items-start w-full">
             <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
               {selectedItem.title}
@@ -243,7 +245,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] z-20">
+        <div className="fixed bottom-0 shrink-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] z-20">
           {selectedItem.is_sold ? (
             <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
               <span className="text-sm leading-none">Artículo Vendido</span>
