@@ -153,7 +153,6 @@ export default function Home() {
     const formattedPrice = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(selectedItem.price);
 
     return (
-      // FIXED: Added overflow-x-hidden and w-full to absolutely prevent horizontal stretching
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
         <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
           <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
@@ -198,8 +197,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* FIXED: Added w-full and overflow-hidden to the text container */}
-        <div className="p-5 pb-40 w-full overflow-hidden">
+        {/* FIXED: Removed overflow-hidden from this container so you can scroll vertically! */}
+        <div className="p-5 pb-40 w-full">
           <div className="flex justify-between items-start w-full">
             <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
               {selectedItem.title}
@@ -209,7 +208,6 @@ export default function Home() {
 
           <div className="mt-6 border-t border-gray-100 pt-6 w-full">
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
-            {/* FIXED: Added break-all to forcefully chop long unbroken text */}
             <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words break-all">{selectedItem.description || 'Sin descripción.'}</p>
           </div>
 
