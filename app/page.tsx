@@ -50,7 +50,6 @@ export default function Home() {
     const from = pageNumber * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    // CHANGED: Now sorting by 'bumped_at' instead of 'created_at'
     let query = supabase.from('listings').select('*').order('bumped_at', { ascending: false }).range(from, to);
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
@@ -111,16 +110,12 @@ export default function Home() {
     }
   };
 
-<<<<<<< HEAD
-  // NEW: Sends a message to your specific business WhatsApp to request a bump
   const handleBoostRequest = () => {
     if (!selectedItem) return;
     const message = encodeURIComponent(`Hola administrador, quiero darle un Boost (subir al inicio) a mi artículo: "${selectedItem.title}".`);
     window.open(`https://wa.me/526251191400?text=${message}`, '_blank');
   };
 
-=======
->>>>>>> 76d039964fcdea6ed24ef011dd765febd9d58c2d
   const renderFullscreenGallery = () => {
     if (!showFullscreen || !selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
@@ -222,19 +217,14 @@ export default function Home() {
 
           {!selectedItem.is_sold && (
             <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4 w-full">
-<<<<<<< HEAD
               <h4 className="font-bold text-slate-800 text-sm mb-4">¿Eres el vendedor? / Are you the seller?</h4>
 
-              {/* NEW: Boost Button Section */}
               <div className="mb-5 bg-indigo-50/50 p-3.5 rounded-lg border border-indigo-100">
                 <p className="text-xs text-indigo-800 font-bold mb-2.5">¿Quieres vender más rápido? Sube tu anuncio al inicio.</p>
                 <button onClick={handleBoostRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors">
                   🚀 Dar un "Boost" ($20 MXN)
                 </button>
               </div>
-=======
-              <h4 className="font-bold text-slate-800 text-sm mb-2">¿Eres el vendedor? / Are you the seller?</h4>
->>>>>>> 76d039964fcdea6ed24ef011dd765febd9d58c2d
 
               {!showSoldPrompt ? (
                 <button onClick={() => setShowSoldPrompt(true)} className="w-full text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-3 rounded-lg border border-red-100 transition-colors">
