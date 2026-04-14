@@ -16,7 +16,7 @@ const CATEGORIES = [
 ];
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'feed' | 'post' | 'guidelines'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'post' | 'guidelines'>('feed'); // ADDED GUIDELINES TAB
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,8 +29,6 @@ export default function Home() {
   const [showSoldPrompt, setShowSoldPrompt] = useState(false);
   const [verifyPhone, setVerifyPhone] = useState('');
   const [soldLoading, setSoldLoading] = useState(false);
-
-  const [showFullscreen, setShowFullscreen] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'feed') {
@@ -50,8 +48,7 @@ export default function Home() {
     const from = pageNumber * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    // CHANGED: Now sorting by 'bumped_at' instead of 'created_at'
-    let query = supabase.from('listings').select('*').order('bumped_at', { ascending: false }).range(from, to);
+    let query = supabase.from('listings').select('*').order('created_at', { ascending: false }).range(from, to);
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
 
@@ -111,82 +108,23 @@ export default function Home() {
     }
   };
 
-  // NEW: Sends a message to your specific business WhatsApp to request a bump
-  const handleBoostRequest = () => {
-    if (!selectedItem) return;
-    const message = encodeURIComponent(`Hola administrador, quiero darle un Boost (subir al inicio) a mi artículo: "${selectedItem.title}".`);
-    window.open(`https://wa.me/526251191400?text=${message}`, '_blank');
-  };
-
-  const renderFullscreenGallery = () => {
-    if (!showFullscreen || !selectedItem) return null;
-    const images = selectedItem.image_urls || [selectedItem.image_url];
-
-    return (
-      <div className="fixed inset-0 z-[100] bg-black flex flex-col">
-        <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-50">
-          <button
-            onClick={() => setShowFullscreen(false)}
-            className="bg-white/20 hover:bg-white/30 text-white rounded-full py-2 px-4 backdrop-blur-md font-bold text-sm flex items-center gap-2 transition-all"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            Cerrar
-          </button>
-        </div>
-
-        <div className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
-          {images.map((img: string, i: number) => (
-            <div key={i} className="w-full h-full shrink-0 snap-center flex flex-col items-center justify-center p-2 relative">
-              <img
-                src={img}
-                className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
-                alt={`full-${i}`}
-              />
-              {images.length > 1 && (
-                <div className="absolute bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 bg-black/60 text-white font-bold text-xs px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
-                  {i + 1} / {images.length}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
   const renderDetailView = () => {
     if (!selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
     const formattedPrice = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(selectedItem.price);
 
     return (
-      <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
-        <div className="sticky top-0 shrink-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
-          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
+      <div className="fixed inset-0 z-50 bg-white overflow-y-auto flex flex-col">
+        <div className="sticky top-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
+          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
           </button>
         </div>
 
-        <div className="w-full shrink-0 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
+        <div className="w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
-            <div
-              key={i}
-              onClick={() => setShowFullscreen(true)}
-              className="w-full h-[30vh] shrink-0 snap-center flex items-center justify-center p-2 relative cursor-pointer group"
-            >
-              <img
-                src={img}
-                className={`max-w-full max-h-full object-contain transition-transform group-active:scale-95 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
-                alt={`img-${i}`}
-              />
-
-              {!selectedItem.is_sold && (
-                <div className="absolute bottom-3 right-3 bg-black/60 text-white p-2 rounded-full backdrop-blur-sm shadow-lg pointer-events-none">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-                </div>
-              )}
-            </div>
+            <img key={i} src={img} className={`w-full h-[50vh] object-contain snap-center shrink-0 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`img-${i}`} />
           ))}
           {selectedItem.is_sold && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -198,43 +136,35 @@ export default function Home() {
         </div>
 
         {images.length > 1 && !selectedItem.is_sold && (
-          <div className="text-center mt-3 shrink-0 flex flex-col items-center">
-            <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más o toca para ampliar ↔</p>
-            <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more or tap to expand ↔</p>
+          <div className="text-center mt-3 flex flex-col items-center">
+            <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más fotos ↔</p>
+            <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more photos ↔</p>
           </div>
         )}
 
-        <div className="p-5 pb-40 w-full flex-grow">
-          <div className="flex justify-between items-start w-full">
-            <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
+        <div className="p-5 pb-40">
+          <div className="flex justify-between items-start">
+            <h1 className={`text-2xl font-black leading-tight ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
               {selectedItem.title}
             </h1>
           </div>
           <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1`}>{formattedPrice}</p>
 
-          <div className="mt-6 border-t border-gray-100 pt-6 w-full">
+          <div className="mt-6 border-t border-gray-100 pt-6">
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words break-all">{selectedItem.description || 'Sin descripción.'}</p>
+            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedItem.description || 'Sin descripción.'}</p>
           </div>
 
           {!selectedItem.is_sold && (
-            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4 w-full">
-              <h4 className="font-bold text-slate-800 text-sm mb-4">¿Eres el vendedor? / Are you the seller?</h4>
-
-              {/* NEW: Boost Button Section */}
-              <div className="mb-5 bg-indigo-50/50 p-3.5 rounded-lg border border-indigo-100">
-                <p className="text-xs text-indigo-800 font-bold mb-2.5">¿Quieres vender más rápido? Sube tu anuncio al inicio.</p>
-                <button onClick={handleBoostRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors">
-                  🚀 Dar un "Boost" ($20 MXN)
-                </button>
-              </div>
+            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <h4 className="font-bold text-slate-800 text-sm mb-2">¿Eres el vendedor? / Are you the seller?</h4>
 
               {!showSoldPrompt ? (
-                <button onClick={() => setShowSoldPrompt(true)} className="w-full text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-3 rounded-lg border border-red-100 transition-colors">
+                <button onClick={() => setShowSoldPrompt(true)} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg border border-red-100 transition-colors">
                   Marcar como Vendido
                 </button>
               ) : (
-                <div className="space-y-3 mt-3 w-full">
+                <div className="space-y-3 mt-3">
                   <p className="text-xs text-slate-500 font-medium">Ingresa el número de WhatsApp que usaste para publicar este artículo para confirmar que es tuyo.</p>
                   <input
                     type="tel"
@@ -243,7 +173,7 @@ export default function Home() {
                     onChange={(e) => setVerifyPhone(e.target.value)}
                     className="w-full border rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                   />
-                  <div className="flex gap-2 w-full">
+                  <div className="flex gap-2">
                     <button onClick={handleMarkSoldBySeller} disabled={soldLoading} className="bg-red-600 text-white font-bold px-4 py-2 rounded-lg text-sm flex-1">
                       {soldLoading ? 'Verificando...' : 'Confirmar Venta'}
                     </button>
@@ -257,7 +187,7 @@ export default function Home() {
           )}
         </div>
 
-        <div className="fixed bottom-0 shrink-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] z-20">
+        <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] z-20">
           {selectedItem.is_sold ? (
             <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
               <span className="text-sm leading-none">Artículo Vendido</span>
@@ -277,6 +207,7 @@ export default function Home() {
     );
   };
 
+  // NEW: RENDER GUIDELINES VIEW
   const renderGuidelinesView = () => (
     <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
       <div className="text-center border-b border-gray-100 pb-4">
@@ -318,27 +249,8 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
-        <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
-        <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
-
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-bold text-slate-800">🍎 iPhone (Safari)</p>
-            <p className="text-xs text-slate-600 mt-0.5">Toca el botón de compartir (cuadro con flecha) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla de inicio"</span>.</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the share button (square with arrow) and select <span className="font-bold">"Add to Home Screen"</span>.</p>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-slate-800">🤖 Android (Chrome)</p>
-            <p className="text-xs text-slate-600 mt-0.5">Toca el letrero de "Instalar aplicación" abajo, o abre el menú (3 puntos) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla principal"</span>.</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the "Install App" banner, or open the menu (3 dots) and select <span className="font-bold">"Add to Home screen"</span>.</p>
-          </div>
-        </div>
-      </div>
-
       <div className="bg-blue-50 p-4 rounded-lg text-center mt-6 border border-blue-100">
-        <p className="text-[11px] font-bold text-blue-800 uppercase tracking-wide">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
+        <p className="text-sm font-bold text-blue-800">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
       </div>
     </div>
   );
@@ -346,13 +258,9 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50 pb-32">
       {renderDetailView()}
-      {renderFullscreenGallery()}
 
       <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-30 border-b border-gray-100">
-        <div className="text-center mb-4">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Trato 625</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1.5">Cuauhtémoc, Chihuahua MX</p>
-        </div>
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight text-center mb-4">Trato 625</h1>
 
         {activeTab === 'feed' && (
           <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
@@ -417,6 +325,7 @@ export default function Home() {
           <span className="font-black text-sm leading-tight">Vender</span>
           <span className="text-[10px] font-medium leading-tight">Sell</span>
         </button>
+        {/* NEW: GUIDELINES BUTTON */}
         <button onClick={() => setActiveTab('guidelines')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'guidelines' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
           <span className="font-black text-sm leading-tight">Reglas</span>
           <span className="text-[10px] font-medium leading-tight">Rules</span>
