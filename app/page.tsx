@@ -111,6 +111,7 @@ export default function Home() {
     }
   };
 
+<<<<<<< HEAD
   // NEW: Sends a message to your specific business WhatsApp to request a bump
   const handleBoostRequest = () => {
     if (!selectedItem) return;
@@ -118,6 +119,8 @@ export default function Home() {
     window.open(`https://wa.me/526251191400?text=${message}`, '_blank');
   };
 
+=======
+>>>>>>> 76d039964fcdea6ed24ef011dd765febd9d58c2d
   const renderFullscreenGallery = () => {
     if (!showFullscreen || !selectedItem) return null;
     const images = selectedItem.image_urls || [selectedItem.image_url];
@@ -219,6 +222,7 @@ export default function Home() {
 
           {!selectedItem.is_sold && (
             <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4 w-full">
+<<<<<<< HEAD
               <h4 className="font-bold text-slate-800 text-sm mb-4">¿Eres el vendedor? / Are you the seller?</h4>
 
               {/* NEW: Boost Button Section */}
@@ -228,6 +232,9 @@ export default function Home() {
                   🚀 Dar un "Boost" ($20 MXN)
                 </button>
               </div>
+=======
+              <h4 className="font-bold text-slate-800 text-sm mb-2">¿Eres el vendedor? / Are you the seller?</h4>
+>>>>>>> 76d039964fcdea6ed24ef011dd765febd9d58c2d
 
               {!showSoldPrompt ? (
                 <button onClick={() => setShowSoldPrompt(true)} className="w-full text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-3 rounded-lg border border-red-100 transition-colors">
