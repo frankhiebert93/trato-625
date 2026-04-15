@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { compressImage } from '../lib/imageUtils';
 import { supabase } from '../lib/supabase';
 
@@ -22,7 +22,27 @@ export default function PostForm() {
     const [description, setDescription] = useState('');
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
-    const [agreed, setAgreed] = useState(false); // NEW STATE FOR CHECKBOX
+    const [agreed, setAgreed] = useState(false); 
+    const [cooldown, setCooldown] = useState(0);
+
+    // Check for existing cooldown on load
+    useEffect(() => {
+        const lastPostTime = localStorage.getItem('lastPostTime');
+        if (lastPostTime) {
+            const timePassed = Math.floor((Date.now() - parseInt(lastPostTime)) / 1000);
+            if (timePassed < 60) {
+                setCooldown(60 - timePassed);
+            }
+        }
+    }, []);
+
+    // Timer effect
+    useEffect(() => {
+        if (cooldown > 0) {
+            const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldown]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -39,12 +59,35 @@ export default function PostForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // 1. Cooldown Check
+        if (cooldown > 0) {
+            alert(`Por favor espera ${cooldown} segundos antes de publicar otro artículo. / Please wait.`);
+            return;
+        }
+
         if (!firstName.trim() || !lastName.trim()) {
             alert('El nombre y apellido son obligatorios. / First and last name are mandatory.');
             return;
         }
 
-        // NEW CHECK FOR GUIDELINES
+        // 2. Minimum Text Limits Check
+        if (title.trim().length < 4) {
+            alert('El título es muy corto. Escribe al menos 4 letras. / Title is too short.');
+            return;
+        }
+
+        if (description.trim().length > 0 && description.trim().length < 10) {
+            alert('La descripción es muy corta. Da más detalles o déjala en blanco. / Description is too short.');
+            return;
+        }
+
+        // 3. Exact 10-Digit Phone Check
+        const cleanPhone = phone.replace(/\D/g, ''); // Removes anything that isn't a number
+        if (cleanPhone.length !== 10) {
+            alert('El número de WhatsApp debe tener exactamente 10 dígitos. / Phone must be exactly 10 digits.');
+            return;
+        }
+
         if (!agreed) {
             alert('Debes aceptar las reglas de la comunidad para publicar. / You must agree to the community guidelines to post.');
             return;
@@ -78,11 +121,15 @@ export default function PostForm() {
                 description,
                 image_url: uploadedUrls[0],
                 image_urls: uploadedUrls,
-                seller_phone: phone,
+                seller_phone: cleanPhone, // Save the clean 10-digit version
                 category
             }]);
 
             if (dbError) throw dbError;
+
+            // Start Cooldown Timer
+            localStorage.setItem('lastPostTime', Date.now().toString());
+            setCooldown(60);
 
             alert('¡Artículo publicado! / Item successfully posted!');
             setFirstName(''); setLastName(''); setTitle(''); setPrice(''); setPhone('');
@@ -130,7 +177,7 @@ export default function PostForm() {
                 </div>
                 <div className="flex-1">
                     <label className="block mb-1">
-                        <span className="text-sm font-bold text-slate-800">WhatsApp</span>
+                        <span className="text-sm font-bold text-slate-800">WhatsApp (10 Dígitos)</span>
                     </label>
                     <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="625..." required />
                 </div>
@@ -164,7 +211,6 @@ export default function PostForm() {
                 </div>
             </div>
 
-            {/* NEW: AGREEMENT CHECKBOX */}
             <div className="flex items-start gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
                 <div className="flex items-center h-5 mt-1">
                     <input
@@ -181,9 +227,11 @@ export default function PostForm() {
                 </label>
             </div>
 
-            <button type="submit" disabled={uploading} className="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-lg mt-6 disabled:bg-gray-400 transition-all shadow-md flex flex-col items-center justify-center">
-                <span className="font-bold text-base leading-none">{uploading ? 'Publicando...' : 'Publicar Artículo'}</span>
-                {!uploading && <span className="text-[11px] font-medium text-slate-300 mt-1 leading-none">Post Item</span>}
+            <button type="submit" disabled={uploading || cooldown > 0} className={`w-full text-white py-3.5 rounded-lg mt-6 transition-all shadow-md flex flex-col items-center justify-center ${cooldown > 0 ? 'bg-gray-400' : 'bg-slate-900 hover:bg-slate-800 disabled:bg-gray-400'}`}>
+                <span className="font-bold text-base leading-none">
+                    {cooldown > 0 ? `Espera ${cooldown}s` : uploading ? 'Publicando...' : 'Publicar Artículo'}
+                </span>
+                {!uploading && cooldown === 0 && <span className="text-[11px] font-medium text-slate-300 mt-1 leading-none">Post Item</span>}
             </button>
         </form>
     );
