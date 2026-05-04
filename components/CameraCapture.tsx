@@ -76,7 +76,7 @@ export default function PostForm() {
             return;
         }
 
-        if (description.trim().length > 0 && description.trim().length < 10) {
+        if (description.trim().length > 0 && description.trim().length < 5) {
             alert('La descripción es muy corta. Da más detalles o déjala en blanco. / Description is too short.');
             return;
         }
