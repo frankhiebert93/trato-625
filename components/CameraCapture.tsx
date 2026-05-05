@@ -21,12 +21,12 @@ export default function PostForm() {
     const [category, setCategory] = useState(CATEGORIES[0].val);
     const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
+    const [pin, setPin] = useState(''); // NEW: Secret PIN state
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
     const [agreed, setAgreed] = useState(false); 
     const [cooldown, setCooldown] = useState(0);
 
-    // Check for existing cooldown on load
     useEffect(() => {
         const lastPostTime = localStorage.getItem('lastPostTime');
         if (lastPostTime) {
@@ -37,7 +37,6 @@ export default function PostForm() {
         }
     }, []);
 
-    // Timer effect
     useEffect(() => {
         if (cooldown > 0) {
             const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
@@ -60,9 +59,8 @@ export default function PostForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // 1. Cooldown Check
         if (cooldown > 0) {
-            alert(`Por favor espera ${cooldown} segundos antes de publicar otro artículo. / Please wait.`);
+            alert(`Por favor espera ${cooldown} segundos antes de publicar. / Please wait.`);
             return;
         }
 
@@ -71,26 +69,24 @@ export default function PostForm() {
             return;
         }
 
-        // 2. Minimum Text Limits Check
         if (title.trim().length < 4) {
             alert('El título es muy corto. Escribe al menos 4 letras. / Title is too short.');
             return;
         }
 
-        if (description.trim().length > 0 && description.trim().length < 5) {
-            alert('La descripción es muy corta. Da más detalles o déjala en blanco. / Description is too short.');
+        const cleanPhone = phone.replace(/\D/g, ''); 
+        if (cleanPhone.length !== 10) {
+            alert('El número de WhatsApp debe tener exactamente 10 dígitos. / Phone must be 10 digits.');
             return;
         }
 
-        // 3. Exact 10-Digit Phone Check
-        const cleanPhone = phone.replace(/\D/g, ''); // Removes anything that isn't a number
-        if (cleanPhone.length !== 10) {
-            alert('El número de WhatsApp debe tener exactamente 10 dígitos. / Phone must be exactly 10 digits.');
+        if (pin.length !== 4) {
+            alert('El PIN de seguridad debe tener exactamente 4 dígitos. / PIN must be exactly 4 digits.');
             return;
         }
 
         if (!agreed) {
-            alert('Debes aceptar las reglas de la comunidad para publicar. / You must agree to the community guidelines to post.');
+            alert('Debes aceptar las reglas de la comunidad para publicar. / You must agree to guidelines.');
             return;
         }
 
@@ -123,19 +119,19 @@ export default function PostForm() {
                 location,
                 image_url: uploadedUrls[0],
                 image_urls: uploadedUrls,
-                seller_phone: cleanPhone, // Save the clean 10-digit version
-                category
+                seller_phone: cleanPhone,
+                category,
+                secret_pin: pin // NEW: Saves the PIN directly to the database
             }]);
 
             if (dbError) throw dbError;
 
-            // Start Cooldown Timer
             localStorage.setItem('lastPostTime', Date.now().toString());
             setCooldown(60);
 
             alert('¡Artículo publicado! / Item successfully posted!');
             setFirstName(''); setLastName(''); setTitle(''); setPrice(''); setPhone('');
-            setLocation(''); setDescription(''); setCategory(CATEGORIES[0].val); setFiles([]); setAgreed(false);
+            setLocation(''); setDescription(''); setPin(''); setCategory(CATEGORIES[0].val); setFiles([]); setAgreed(false);
         } catch (error: any) {
             alert('Error: ' + (error.message || 'Failed to post item.'));
         } finally {
@@ -154,10 +150,10 @@ export default function PostForm() {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Datos Privados / Private Data (Solo Admin)</p>
                 <div className="flex gap-3">
                     <div className="flex-1">
-                        <input type="text" placeholder="Nombre (Obligatorio)" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
+                        <input type="text" placeholder="Nombre" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
                     </div>
                     <div className="flex-1">
-                        <input type="text" placeholder="Apellido (Obligatorio)" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
+                        <input type="text" placeholder="Apellido" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
                     </div>
                 </div>
             </div>
@@ -165,7 +161,6 @@ export default function PostForm() {
             <div>
                 <label className="block mb-1">
                     <span className="text-sm font-bold text-slate-800">¿Qué estás vendiendo?</span>
-                    <span className="block text-xs text-slate-400 font-medium -mt-0.5">What are you selling?</span>
                 </label>
                 <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" required />
             </div>
@@ -194,9 +189,26 @@ export default function PostForm() {
                 </select>
             </div>
 
+            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl">
+                <label className="block mb-2 text-center">
+                    <span className="text-sm font-black text-orange-900 block">🔒 PIN de Seguridad (4 Dígitos)</span>
+                    <span className="block text-xs text-orange-700 font-medium leading-tight mt-1">Crea un PIN secreto para marcar esto como "Vendido" después. Anótalo bien.</span>
+                </label>
+                <input 
+                    type="password" 
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={pin} 
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
+                    className="w-full border-2 border-orange-200 rounded-lg p-3 bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition-all text-center tracking-[0.5em] font-black text-2xl text-slate-800" 
+                    placeholder="••••" 
+                    required 
+                />
+            </div>
+
             <div>
                 <label className="block mb-1">
-                    <span className="text-sm font-bold text-slate-800">Ubicación / Location <span className="font-normal text-gray-400">(Opcional)</span></span>
+                    <span className="text-sm font-bold text-slate-800">Ubicación <span className="font-normal text-gray-400">(Opcional)</span></span>
                 </label>
                 <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ej. Campo 2B, Centro, etc." className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" maxLength={40} />
             </div>
@@ -214,7 +226,6 @@ export default function PostForm() {
                         <p className="mb-1 text-sm font-bold text-blue-600">
                             {files.length > 0 ? `${files.length} foto(s) lista(s)` : 'Toca para agregar fotos (Max 5)'}
                         </p>
-                        {files.length === 0 && <p className="text-xs text-blue-400/80 font-medium">Tap to add photos</p>}
                     </div>
                     <input type="file" accept="image/*" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                 </div>
@@ -222,17 +233,10 @@ export default function PostForm() {
 
             <div className="flex items-start gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
                 <div className="flex items-center h-5 mt-1">
-                    <input
-                        type="checkbox"
-                        id="agree"
-                        checked={agreed}
-                        onChange={(e) => setAgreed(e.target.checked)}
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
+                    <input type="checkbox" id="agree" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                 </div>
                 <label htmlFor="agree" className="flex flex-col cursor-pointer">
                     <span className="text-sm font-bold text-slate-800 leading-tight">He leído y acepto las Reglas de la Comunidad.</span>
-                    <span className="text-[10px] font-medium text-slate-500 mt-0.5">I have read and agree to the Community Guidelines.</span>
                 </label>
             </div>
 
@@ -240,7 +244,6 @@ export default function PostForm() {
                 <span className="font-bold text-base leading-none">
                     {cooldown > 0 ? `Espera ${cooldown}s` : uploading ? 'Publicando...' : 'Publicar Artículo'}
                 </span>
-                {!uploading && cooldown === 0 && <span className="text-[11px] font-medium text-slate-300 mt-1 leading-none">Post Item</span>}
             </button>
         </form>
     );
