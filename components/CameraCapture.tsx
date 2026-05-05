@@ -19,6 +19,7 @@ export default function PostForm() {
     const [price, setPrice] = useState('');
     const [phone, setPhone] = useState('');
     const [category, setCategory] = useState(CATEGORIES[0].val);
+    const [location, setLocation] = useState('');
     const [description, setDescription] = useState('');
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
@@ -119,6 +120,7 @@ export default function PostForm() {
                 title,
                 price: parseFloat(price),
                 description,
+                location,
                 image_url: uploadedUrls[0],
                 image_urls: uploadedUrls,
                 seller_phone: cleanPhone, // Save the clean 10-digit version
@@ -133,7 +135,7 @@ export default function PostForm() {
 
             alert('¡Artículo publicado! / Item successfully posted!');
             setFirstName(''); setLastName(''); setTitle(''); setPrice(''); setPhone('');
-            setDescription(''); setCategory(CATEGORIES[0].val); setFiles([]); setAgreed(false);
+            setLocation(''); setDescription(''); setCategory(CATEGORIES[0].val); setFiles([]); setAgreed(false);
         } catch (error: any) {
             alert('Error: ' + (error.message || 'Failed to post item.'));
         } finally {
@@ -190,6 +192,13 @@ export default function PostForm() {
                 <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
                     {CATEGORIES.map(cat => <option key={cat.val} value={cat.val}>{cat.es} / {cat.en}</option>)}
                 </select>
+            </div>
+
+            <div>
+                <label className="block mb-1">
+                    <span className="text-sm font-bold text-slate-800">Ubicación / Location <span className="font-normal text-gray-400">(Opcional)</span></span>
+                </label>
+                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ej. Campo 2B, Centro, etc." className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" maxLength={40} />
             </div>
 
             <div>
