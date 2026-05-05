@@ -208,7 +208,14 @@ export default function Home() {
               {selectedItem.title}
             </h1>
           </div>
-          <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1`}>{formattedPrice}</p>
+          
+          {selectedItem.location && (
+            <p className="text-sm text-gray-500 font-bold mt-1.5 flex items-center gap-1">
+              📍 {selectedItem.location}
+            </p>
+          )}
+
+          <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1.5`}>{formattedPrice}</p>
 
           <div className="mt-6 border-t border-gray-100 pt-6 w-full">
             <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
