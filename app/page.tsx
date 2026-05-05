@@ -27,7 +27,7 @@ export default function Home() {
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [showSoldPrompt, setShowSoldPrompt] = useState(false);
-  const [verifyPhone, setVerifyPhone] = useState('');
+  const [verifyPin, setVerifyPin] = useState(''); // NEW: Swapped phone for PIN
   const [soldLoading, setSoldLoading] = useState(false);
 
   const [showFullscreen, setShowFullscreen] = useState(false);
@@ -50,7 +50,12 @@ export default function Home() {
     const from = pageNumber * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    let query = supabase.from('listings').select('*').order('bumped_at', { ascending: false }).range(from, to);
+    // SECURITY UPDATE: We specifically exclude the 'secret_pin' column here so hackers cannot see it!
+    let query = supabase.from('listings')
+      .select('id, created_at, seller_name, title, price, description, location, image_url, image_urls, seller_phone, category, is_sold, bumped_at')
+      .order('bumped_at', { ascending: false })
+      .range(from, to);
+      
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
 
@@ -85,29 +90,38 @@ export default function Home() {
     } catch (err) { console.error(err); }
   };
 
+  // SECURITY UPDATE: Validation using the Server Database
   const handleMarkSoldBySeller = async () => {
     if (!selectedItem) return;
-
-    const cleanInput = verifyPhone.replace(/\D/g, '');
-    const cleanDBPhone = selectedItem.seller_phone.replace(/\D/g, '');
-
-    if (cleanInput === cleanDBPhone) {
-      setSoldLoading(true);
-      const { error } = await supabase.from('listings').update({ is_sold: true }).eq('id', selectedItem.id);
-
-      if (!error) {
-        setSelectedItem({ ...selectedItem, is_sold: true });
-        setListings(listings.map(item => item.id === selectedItem.id ? { ...item, is_sold: true } : item));
-        setShowSoldPrompt(false);
-        setVerifyPhone('');
-        alert("¡Felicidades por tu venta! El artículo ha sido marcado como vendido. / Item marked as sold!");
-      } else {
-        alert("Hubo un error de conexión.");
-      }
-      setSoldLoading(false);
-    } else {
-      alert("El número no coincide con el que se usó para publicar este artículo. / Number does not match.");
+    
+    if (verifyPin.length !== 4) {
+      alert("El PIN debe ser de 4 dígitos.");
+      return;
     }
+
+    setSoldLoading(true);
+    
+    // We tell the server: Update is_sold ONLY IF the ID and the PIN match.
+    const { data, error } = await supabase
+      .from('listings')
+      .update({ is_sold: true })
+      .eq('id', selectedItem.id)
+      .eq('secret_pin', verifyPin)
+      .select(); // Returns the row if successful
+
+    if (error) {
+      alert("Hubo un error de conexión al servidor.");
+    } else if (!data || data.length === 0) {
+      alert("❌ El PIN es incorrecto. Intenta de nuevo.");
+    } else {
+      setSelectedItem({ ...selectedItem, is_sold: true });
+      setListings(listings.map(item => item.id === selectedItem.id ? { ...item, is_sold: true } : item));
+      setShowSoldPrompt(false);
+      setVerifyPin('');
+      alert("¡Felicidades por tu venta! El artículo ha sido marcado como vendido. / Item marked as sold!");
+    }
+    
+    setSoldLoading(false);
   };
 
   const handleBoostRequest = () => {
@@ -123,10 +137,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-[100] bg-black flex flex-col">
         <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-50">
-          <button
-            onClick={() => setShowFullscreen(false)}
-            className="bg-white/20 hover:bg-white/30 text-white rounded-full py-2 px-4 backdrop-blur-md font-bold text-sm flex items-center gap-2 transition-all"
-          >
+          <button onClick={() => setShowFullscreen(false)} className="bg-white/20 hover:bg-white/30 text-white rounded-full py-2 px-4 backdrop-blur-md font-bold text-sm flex items-center gap-2 transition-all">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             Cerrar
           </button>
@@ -135,11 +146,7 @@ export default function Home() {
         <div className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
           {images.map((img: string, i: number) => (
             <div key={i} className="w-full h-full shrink-0 snap-center flex flex-col items-center justify-center p-2 relative">
-              <img
-                src={img}
-                className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
-                alt={`full-${i}`}
-              />
+              <img src={img} className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`full-${i}`} />
               {images.length > 1 && (
                 <div className="absolute bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 bg-black/60 text-white font-bold text-xs px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
                   {i + 1} / {images.length}
@@ -160,7 +167,7 @@ export default function Home() {
     return (
       <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
         <div className="sticky top-0 shrink-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
-          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPhone(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
+          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPin(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             Atrás
           </button>
@@ -168,17 +175,8 @@ export default function Home() {
 
         <div className="w-full shrink-0 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
           {images.map((img: string, i: number) => (
-            <div
-              key={i}
-              onClick={() => setShowFullscreen(true)}
-              className="w-full h-[30vh] shrink-0 snap-center flex items-center justify-center p-2 relative cursor-pointer group"
-            >
-              <img
-                src={img}
-                className={`max-w-full max-h-full object-contain transition-transform group-active:scale-95 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`}
-                alt={`img-${i}`}
-              />
-
+            <div key={i} onClick={() => setShowFullscreen(true)} className="w-full h-[30vh] shrink-0 snap-center flex items-center justify-center p-2 relative cursor-pointer group">
+              <img src={img} className={`max-w-full max-h-full object-contain transition-transform group-active:scale-95 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`img-${i}`} />
               {!selectedItem.is_sold && (
                 <div className="absolute bottom-3 right-3 bg-black/60 text-white p-2 rounded-full backdrop-blur-sm shadow-lg pointer-events-none">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
@@ -188,31 +186,18 @@ export default function Home() {
           ))}
           {selectedItem.is_sold && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-              <span className="bg-red-600/90 text-white font-black text-4xl tracking-widest px-8 py-3 transform -rotate-12 border-4 border-red-800 shadow-2xl">
-                VENDIDO
-              </span>
+              <span className="bg-red-600/90 text-white font-black text-4xl tracking-widest px-8 py-3 transform -rotate-12 border-4 border-red-800 shadow-2xl">VENDIDO</span>
             </div>
           )}
         </div>
 
-        {images.length > 1 && !selectedItem.is_sold && (
-          <div className="text-center mt-3 shrink-0 flex flex-col items-center">
-            <p className="text-xs font-bold text-gray-400 leading-tight">Desliza para ver más o toca para ampliar ↔</p>
-            <p className="text-[10px] font-medium text-gray-500 leading-tight mt-0.5">Swipe to see more or tap to expand ↔</p>
-          </div>
-        )}
-
         <div className="p-5 pb-40 w-full flex-grow">
           <div className="flex justify-between items-start w-full">
-            <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>
-              {selectedItem.title}
-            </h1>
+            <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>{selectedItem.title}</h1>
           </div>
           
           {selectedItem.location && (
-            <p className="text-sm text-gray-500 font-bold mt-1.5 flex items-center gap-1">
-              📍 {selectedItem.location}
-            </p>
+            <p className="text-sm text-gray-500 font-bold mt-1.5 flex items-center gap-1">📍 {selectedItem.location}</p>
           )}
 
           <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1.5`}>{formattedPrice}</p>
@@ -228,32 +213,26 @@ export default function Home() {
 
               <div className="mb-5 bg-indigo-50/50 p-3.5 rounded-lg border border-indigo-100">
                 <p className="text-xs text-indigo-800 font-bold mb-2.5">¿Quieres vender más rápido? Sube tu anuncio al inicio.</p>
-                <button onClick={handleBoostRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors">
-                  🚀 Dar un "Boost" ($20 MXN)
-                </button>
+                <button onClick={handleBoostRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors">🚀 Dar un "Boost" ($20 MXN)</button>
               </div>
 
               {!showSoldPrompt ? (
-                <button onClick={() => setShowSoldPrompt(true)} className="w-full text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-3 rounded-lg border border-red-100 transition-colors">
-                  Marcar como Vendido
-                </button>
+                <button onClick={() => setShowSoldPrompt(true)} className="w-full text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-3 rounded-lg border border-red-100 transition-colors">Marcar como Vendido</button>
               ) : (
                 <div className="space-y-3 mt-3 w-full">
-                  <p className="text-xs text-slate-500 font-medium">Ingresa el número de WhatsApp que usaste para publicar este artículo para confirmar que es tuyo.</p>
+                  <p className="text-xs text-slate-500 font-medium">Ingresa el PIN Secreto de 4 dígitos que creaste para confirmar la venta.</p>
                   <input
-                    type="tel"
-                    placeholder="Número de WhatsApp..."
-                    value={verifyPhone}
-                    onChange={(e) => setVerifyPhone(e.target.value)}
-                    className="w-full border rounded-lg p-2.5 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="••••"
+                    value={verifyPin}
+                    onChange={(e) => setVerifyPin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full border-2 border-gray-300 rounded-lg p-3 bg-white focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none text-center tracking-[1em] font-black text-2xl"
                   />
                   <div className="flex gap-2 w-full">
-                    <button onClick={handleMarkSoldBySeller} disabled={soldLoading} className="bg-red-600 text-white font-bold px-4 py-2 rounded-lg text-sm flex-1">
-                      {soldLoading ? 'Verificando...' : 'Confirmar Venta'}
-                    </button>
-                    <button onClick={() => { setShowSoldPrompt(false); setVerifyPhone(''); }} className="bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-lg text-sm">
-                      Cancelar
-                    </button>
+                    <button onClick={handleMarkSoldBySeller} disabled={soldLoading} className="bg-red-600 text-white font-bold px-4 py-3 rounded-lg text-sm flex-1">{soldLoading ? 'Verificando...' : 'Confirmar Venta'}</button>
+                    <button onClick={() => { setShowSoldPrompt(false); setVerifyPin(''); }} className="bg-gray-200 text-gray-700 font-bold px-4 py-3 rounded-lg text-sm">Cancelar</button>
                   </div>
                 </div>
               )}
@@ -265,17 +244,11 @@ export default function Home() {
           {selectedItem.is_sold ? (
             <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
               <span className="text-sm leading-none">Artículo Vendido</span>
-              <span className="text-[10px] font-medium mt-1 leading-none">Item Sold</span>
             </div>
           ) : (
-            <button onClick={() => handleWhatsAppClick(selectedItem)} className="flex-[2] bg-[#25D366] hover:bg-[#1DA851] text-white py-3.5 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2 text-lg">
-              WhatsApp
-            </button>
+            <button onClick={() => handleWhatsAppClick(selectedItem)} className="flex-[2] bg-[#25D366] hover:bg-[#1DA851] text-white py-3.5 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2 text-lg">WhatsApp</button>
           )}
-
-          <button onClick={() => handleShare(selectedItem)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 py-3.5 rounded-xl font-bold transition-all flex flex-col items-center justify-center">
-            <span className="text-sm leading-none">Compartir</span>
-          </button>
+          <button onClick={() => handleShare(selectedItem)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 py-3.5 rounded-xl font-bold transition-all flex flex-col items-center justify-center"><span className="text-sm leading-none">Compartir</span></button>
         </div>
       </div>
     );
@@ -285,64 +258,11 @@ export default function Home() {
     <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
       <div className="text-center border-b border-gray-100 pb-4">
         <h2 className="text-2xl font-black text-slate-900">Reglas de la Comunidad</h2>
-        <p className="text-sm text-slate-500 font-bold">Community Guidelines</p>
       </div>
-
       <div className="space-y-6">
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>1.</span> Solo Comercio Local
-          </h3>
-          <p className="text-sm font-medium mt-1">Trato 625 es estrictamente para artículos en Cuauhtémoc y sus alrededores. Si no estás en la zona local, tu publicación será eliminada.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Local items only. Trato 625 is for Cuauhtémoc and surrounding areas. Non-local listings will be deleted.</p>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>2.</span> Artículos Prohibidos
-          </h3>
-          <p className="text-sm font-medium mt-1">Cero tolerancia a la venta de artículos ilegales, armas de fuego, drogas, o contenido explícito. Publicar esto resultará en un bloqueo permanente.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Zero tolerance for illegal items, firearms, drugs, or explicit content. Violators will be permanently banned.</p>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>3.</span> Respeto Mutuo
-          </h3>
-          <p className="text-sm font-medium mt-1">Sé honesto con las descripciones de tus artículos y respetuoso al contactar a otros usuarios. Evita el spam.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Be honest with item descriptions and respectful when messaging others. No spamming.</p>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>4.</span> Marca Tus Ventas
-          </h3>
-          <p className="text-sm font-medium mt-1">Es tu responsabilidad mantener limpio el mercado. Cuando vendas tu artículo, usa tu número de teléfono para marcarlo como "VENDIDO" para que la gente deje de contactarte.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Keep the market clean. When your item sells, use your phone number to mark it as "SOLD".</p>
-        </div>
-      </div>
-
-      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
-        <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
-        <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
-
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-bold text-slate-800">🍎 iPhone (Safari)</p>
-            <p className="text-xs text-slate-600 mt-0.5">Toca el botón de compartir (cuadro con flecha) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla de inicio"</span>.</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the share button (square with arrow) and select <span className="font-bold">"Add to Home Screen"</span>.</p>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-slate-800">🤖 Android (Chrome)</p>
-            <p className="text-xs text-slate-600 mt-0.5">Toca el letrero de "Instalar aplicación" abajo, o abre el menú (3 puntos) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla principal"</span>.</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the "Install App" banner, or open the menu (3 dots) and select <span className="font-bold">"Add to Home screen"</span>.</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-blue-50 p-4 rounded-lg text-center mt-6 border border-blue-100">
-        <p className="text-[11px] font-bold text-blue-800 uppercase tracking-wide">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
+        <div><h3 className="font-bold text-lg text-blue-600">1. Solo Comercio Local</h3><p className="text-sm font-medium mt-1">Trato 625 es para artículos en Cuauhtémoc y alrededores.</p></div>
+        <div><h3 className="font-bold text-lg text-blue-600">2. Artículos Prohibidos</h3><p className="text-sm font-medium mt-1">Cero tolerancia a artículos ilegales, armas, o drogas.</p></div>
+        <div><h3 className="font-bold text-lg text-blue-600">3. Marca Tus Ventas</h3><p className="text-sm font-medium mt-1">Usa tu PIN Secreto para marcar el artículo como VENDIDO y que dejen de contactarte.</p></div>
       </div>
     </div>
   );
@@ -360,13 +280,7 @@ export default function Home() {
 
         {activeTab === 'feed' && (
           <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
-            <input
-              type="text"
-              placeholder="Buscar / Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 border border-gray-200 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-gray-400"
-            />
+            <input type="text" placeholder="Buscar / Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 border border-gray-200 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
             <button type="submit" className="bg-slate-900 text-white font-bold px-5 rounded-lg shadow-sm">Ir</button>
           </form>
         )}
@@ -374,14 +288,8 @@ export default function Home() {
         {activeTab === 'feed' && (
           <div className="flex overflow-x-auto pb-1 gap-2 hide-scrollbar">
             {CATEGORIES.map(cat => (
-              <button
-                key={cat.val}
-                onClick={() => setActiveCategory(cat.val)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1.5 ${activeCategory === cat.val ? 'bg-slate-900 text-white shadow-md' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'
-                  }`}
-              >
+              <button key={cat.val} onClick={() => setActiveCategory(cat.val)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1.5 ${activeCategory === cat.val ? 'bg-slate-900 text-white shadow-md' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'}`}>
                 <span>{cat.es}</span>
-                <span className={`text-[10px] font-normal ${activeCategory === cat.val ? 'text-slate-300' : 'text-slate-400'}`}>/ {cat.en}</span>
               </button>
             ))}
           </div>
@@ -394,37 +302,21 @@ export default function Home() {
         {activeTab === 'feed' && (
           <div className="space-y-4">
             {listings.length === 0 && !loading ? (
-              <div className="text-center mt-12">
-                <p className="text-slate-500 font-bold text-lg">No se encontraron artículos.</p>
-              </div>
+              <div className="text-center mt-12"><p className="text-slate-500 font-bold text-lg">No se encontraron artículos.</p></div>
             ) : (
-              listings.map((item) => (
-                <ListingCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />
-              ))
+              listings.map((item) => <ListingCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />)
             )}
-
             {hasMore && listings.length > 0 && (
-              <button onClick={loadMore} disabled={loading} className="w-full bg-white border border-gray-200 text-blue-600 py-3.5 rounded-xl mt-4 transition-all shadow-sm">
-                <span className="font-bold text-base">{loading ? 'Cargando...' : 'Cargar más'}</span>
-              </button>
+              <button onClick={loadMore} disabled={loading} className="w-full bg-white border border-gray-200 text-blue-600 py-3.5 rounded-xl mt-4 transition-all shadow-sm"><span className="font-bold text-base">{loading ? 'Cargando...' : 'Cargar más'}</span></button>
             )}
           </div>
         )}
       </div>
 
       <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] max-w-md left-1/2 -translate-x-1/2 z-20 shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
-        <button onClick={() => setActiveTab('feed')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'feed' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
-          <span className="font-black text-sm leading-tight">Mercado</span>
-          <span className="text-[10px] font-medium leading-tight">Market</span>
-        </button>
-        <button onClick={() => setActiveTab('post')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'post' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
-          <span className="font-black text-sm leading-tight">Vender</span>
-          <span className="text-[10px] font-medium leading-tight">Sell</span>
-        </button>
-        <button onClick={() => setActiveTab('guidelines')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'guidelines' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}>
-          <span className="font-black text-sm leading-tight">Reglas</span>
-          <span className="text-[10px] font-medium leading-tight">Rules</span>
-        </button>
+        <button onClick={() => setActiveTab('feed')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'feed' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}><span className="font-black text-sm">Mercado</span></button>
+        <button onClick={() => setActiveTab('post')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'post' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}><span className="font-black text-sm">Vender</span></button>
+        <button onClick={() => setActiveTab('guidelines')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'guidelines' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}><span className="font-black text-sm">Reglas</span></button>
       </nav>
     </main>
   );
