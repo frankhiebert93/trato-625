@@ -254,15 +254,68 @@ export default function Home() {
     );
   };
 
-  const renderGuidelinesView = () => (
+const renderGuidelinesView = () => (
     <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
       <div className="text-center border-b border-gray-100 pb-4">
         <h2 className="text-2xl font-black text-slate-900">Reglas de la Comunidad</h2>
+        <p className="text-sm text-slate-500 font-bold">Community Guidelines</p>
       </div>
+
       <div className="space-y-6">
-        <div><h3 className="font-bold text-lg text-blue-600">1. Solo Comercio Local</h3><p className="text-sm font-medium mt-1">Trato 625 es para artículos en Cuauhtémoc y alrededores.</p></div>
-        <div><h3 className="font-bold text-lg text-blue-600">2. Artículos Prohibidos</h3><p className="text-sm font-medium mt-1">Cero tolerancia a artículos ilegales, armas, o drogas.</p></div>
-        <div><h3 className="font-bold text-lg text-blue-600">3. Marca Tus Ventas</h3><p className="text-sm font-medium mt-1">Usa tu PIN Secreto para marcar el artículo como VENDIDO y que dejen de contactarte.</p></div>
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>1.</span> Solo Comercio Local
+          </h3>
+          <p className="text-sm font-medium mt-1">Trato 625 es estrictamente para artículos en Cuauhtémoc y sus alrededores. Si no estás en la zona local, tu publicación será eliminada.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Local items only. Trato 625 is for Cuauhtémoc and surrounding areas. Non-local listings will be deleted.</p>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>2.</span> Artículos Prohibidos
+          </h3>
+          <p className="text-sm font-medium mt-1">Cero tolerancia a la venta de artículos ilegales, armas de fuego, drogas, o contenido explícito. Publicar esto resultará en un bloqueo permanente.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Zero tolerance for illegal items, firearms, drugs, or explicit content. Violators will be permanently banned.</p>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>3.</span> Respeto Mutuo
+          </h3>
+          <p className="text-sm font-medium mt-1">Sé honesto con las descripciones de tus artículos y respetuoso al contactar a otros usuarios. Evita el spam.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Be honest with item descriptions and respectful when messaging others. No spamming.</p>
+        </div>
+
+        <div>
+          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
+            <span>4.</span> Marca Tus Ventas
+          </h3>
+          <p className="text-sm font-medium mt-1">Es tu responsabilidad mantener limpio el mercado. Cuando vendas tu artículo, usa tu <span className="font-bold">PIN Secreto</span> para marcarlo como "VENDIDO" para que la gente deje de contactarte.</p>
+          <p className="text-xs text-slate-400 mt-1 italic">Keep the market clean. When your item sells, use your <span className="font-bold">Secret PIN</span> to mark it as "SOLD".</p>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
+        <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
+        <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
+
+        <div className="space-y-4">
+          <div>
+            <p className="text-sm font-bold text-slate-800">🍎 iPhone (Safari)</p>
+            <p className="text-xs text-slate-600 mt-0.5">Toca el botón de compartir (cuadro con flecha) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla de inicio"</span>.</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the share button (square with arrow) and select <span className="font-bold">"Add to Home Screen"</span>.</p>
+          </div>
+
+          <div>
+            <p className="text-sm font-bold text-slate-800">🤖 Android (Chrome)</p>
+            <p className="text-xs text-slate-600 mt-0.5">Toca el letrero de "Instalar aplicación" abajo, o abre el menú (3 puntos) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla principal"</span>.</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the "Install App" banner, or open the menu (3 dots) and select <span className="font-bold">"Add to Home screen"</span>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-blue-50 p-4 rounded-lg text-center mt-6 border border-blue-100">
+        <p className="text-[11px] font-bold text-blue-800 uppercase tracking-wide">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
       </div>
     </div>
   );
