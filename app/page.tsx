@@ -45,28 +45,26 @@ export default function Home() {
     fetchListings(0, true);
   };
 
-  async function fetchListings(pageNumber: number, isFreshSearch = false) {
+async function fetchListings(pageNumber: number, isFreshSearch = false) {
     setLoading(true);
     const from = pageNumber * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    // SECURITY UPDATE: We specifically exclude the 'secret_pin' column here so hackers cannot see it!
+    // Calculate the exact date and time 15 days ago
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+    const cutoffDate = fifteenDaysAgo.toISOString();
+
+    // SECURITY UPDATE: PIN is hidden.
+    // NEW FILTER: Show if NOT sold, OR if sold but bumped/posted within the last 15 days.
     let query = supabase.from('listings')
       .select('id, created_at, seller_name, title, price, description, location, image_url, image_urls, seller_phone, category, is_sold, bumped_at')
+      .or(`is_sold.eq.false,and(is_sold.eq.true,bumped_at.gte.${cutoffDate})`)
       .order('bumped_at', { ascending: false })
       .range(from, to);
       
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
-
-    const { data, error } = await query;
-    if (!error && data) {
-      if (isFreshSearch || pageNumber === 0) setListings(data);
-      else setListings([...listings, ...data]);
-      setHasMore(data.length === ITEMS_PER_PAGE);
-    }
-    setLoading(false);
-  }
 
   const loadMore = () => {
     const nextPage = page + 1;
