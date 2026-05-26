@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import React from 'react'; 
 import PostForm from '../components/CameraCapture';
 import ListingCard from '../components/ListingCard';
 import { supabase } from '../lib/supabase';
@@ -20,6 +21,9 @@ export default function Home() {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // State for the sponsored ad
+  const [activeAd, setActiveAd] = useState<any | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('Todos');
   const [page, setPage] = useState(0);
@@ -27,7 +31,7 @@ export default function Home() {
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [showSoldPrompt, setShowSoldPrompt] = useState(false);
-  const [verifyPin, setVerifyPin] = useState(''); // NEW: Swapped phone for PIN
+  const [verifyPin, setVerifyPin] = useState(''); 
   const [soldLoading, setSoldLoading] = useState(false);
 
   const [showFullscreen, setShowFullscreen] = useState(false);
@@ -36,6 +40,7 @@ export default function Home() {
     if (activeTab === 'feed') {
       setPage(0);
       fetchListings(0, true);
+      fetchSponsorAd(); 
     }
   }, [activeTab, activeCategory]);
 
@@ -45,18 +50,32 @@ export default function Home() {
     fetchListings(0, true);
   };
 
-async function fetchListings(pageNumber: number, isFreshSearch = false) {
+  // Function to grab the active ad from the database (Respecting Expirations)
+  async function fetchSponsorAd() {
+    const now = new Date().toISOString();
+    
+    const { data } = await supabase
+        .from('sponsored_ads')
+        .select('*')
+        .eq('is_active', true)
+        .or(`expires_at.is.null,expires_at.gte.${now}`) // Hides the ad if it is expired!
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+    if (data) setActiveAd(data);
+  }
+
+  // Fetch listings with the 15-day sold filter
+  async function fetchListings(pageNumber: number, isFreshSearch = false) {
     setLoading(true);
     const from = pageNumber * ITEMS_PER_PAGE;
     const to = from + ITEMS_PER_PAGE - 1;
 
-    // Calculate the exact date and time 15 days ago
     const fifteenDaysAgo = new Date();
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
     const cutoffDate = fifteenDaysAgo.toISOString();
 
-    // SECURITY UPDATE: PIN is hidden.
-    // NEW FILTER: Show if NOT sold, OR if sold but bumped/posted within the last 15 days.
     let query = supabase.from('listings')
       .select('id, created_at, seller_name, title, price, description, location, image_url, image_urls, seller_phone, category, is_sold, bumped_at')
       .or(`is_sold.eq.false,and(is_sold.eq.true,bumped_at.gte.${cutoffDate})`)
@@ -65,6 +84,15 @@ async function fetchListings(pageNumber: number, isFreshSearch = false) {
       
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
+
+    const { data, error } = await query;
+    if (!error && data) {
+      if (isFreshSearch || pageNumber === 0) setListings(data);
+      else setListings([...listings, ...data]);
+      setHasMore(data.length === ITEMS_PER_PAGE);
+    }
+    setLoading(false);
+  }
 
   const loadMore = () => {
     const nextPage = page + 1;
@@ -88,7 +116,6 @@ async function fetchListings(pageNumber: number, isFreshSearch = false) {
     } catch (err) { console.error(err); }
   };
 
-  // SECURITY UPDATE: Validation using the Server Database
   const handleMarkSoldBySeller = async () => {
     if (!selectedItem) return;
     
@@ -99,13 +126,12 @@ async function fetchListings(pageNumber: number, isFreshSearch = false) {
 
     setSoldLoading(true);
     
-    // We tell the server: Update is_sold ONLY IF the ID and the PIN match.
     const { data, error } = await supabase
       .from('listings')
       .update({ is_sold: true })
       .eq('id', selectedItem.id)
       .eq('secret_pin', verifyPin)
-      .select(); // Returns the row if successful
+      .select(); 
 
     if (error) {
       alert("Hubo un error de conexión al servidor.");
@@ -252,7 +278,7 @@ async function fetchListings(pageNumber: number, isFreshSearch = false) {
     );
   };
 
-const renderGuidelinesView = () => (
+  const renderGuidelinesView = () => (
     <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
       <div className="text-center border-b border-gray-100 pb-4">
         <h2 className="text-2xl font-black text-slate-900">Reglas de la Comunidad</h2>
@@ -355,8 +381,37 @@ const renderGuidelinesView = () => (
             {listings.length === 0 && !loading ? (
               <div className="text-center mt-12"><p className="text-slate-500 font-bold text-lg">No se encontraron artículos.</p></div>
             ) : (
-              listings.map((item) => <ListingCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />)
+              // Ad Injection Logic in the mapping
+              listings.map((item, index) => (
+                <React.Fragment key={item.id}>
+                  
+                  {activeAd && (index + 1) === activeAd.position && (
+                    <div onClick={() => window.open(activeAd.link_url, '_blank')} className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl overflow-hidden mb-4 shadow-sm relative cursor-pointer hover:shadow-md transition-shadow group">
+                      <div className="absolute top-0 right-0 bg-amber-400 text-amber-900 text-[10px] font-black px-3 py-1.5 rounded-bl-lg uppercase tracking-wider z-10 shadow-sm">
+                        Patrocinador
+                      </div>
+                      
+                      {activeAd.image_url && (
+                        <div className="w-full h-40 bg-white border-b border-amber-200 flex items-center justify-center overflow-hidden">
+                          <img src={activeAd.image_url} alt="Sponsor" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        </div>
+                      )}
+                      
+                      <div className="p-4">
+                        <h3 className="font-black text-lg text-slate-900 leading-tight">{activeAd.title}</h3>
+                        <p className="text-sm font-medium text-slate-600 mt-1">{activeAd.description}</p>
+                        <div className="mt-3 inline-block bg-white text-blue-600 border border-blue-200 font-bold text-xs px-4 py-2 rounded-lg shadow-sm">
+                          Ver Oferta →
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <ListingCard item={item} onClick={() => setSelectedItem(item)} />
+                </React.Fragment>
+              ))
             )}
+            
             {hasMore && listings.length > 0 && (
               <button onClick={loadMore} disabled={loading} className="w-full bg-white border border-gray-200 text-blue-600 py-3.5 rounded-xl mt-4 transition-all shadow-sm"><span className="font-bold text-base">{loading ? 'Cargando...' : 'Cargar más'}</span></button>
             )}
