@@ -29,6 +29,10 @@ export default function Home() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
+  // --- NEW FILTERS ---
+  const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [sortOrder, setSortOrder] = useState<'recent' | 'price_asc' | 'price_desc'>('recent');
+
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
   const [showSoldPrompt, setShowSoldPrompt] = useState(false);
   const [verifyPin, setVerifyPin] = useState(''); 
@@ -42,7 +46,20 @@ export default function Home() {
       fetchListings(0, true);
       fetchSponsorAd(); 
     }
-  }, [activeTab, activeCategory]);
+  }, [activeTab, activeCategory, onlyAvailable, sortOrder]);
+
+  useEffect(() => {
+    if (selectedItem) {
+      try {
+        const savedPins = JSON.parse(localStorage.getItem('my_listing_pins') || '{}');
+        if (savedPins[selectedItem.id]) {
+          setVerifyPin(savedPins[selectedItem.id]);
+        }
+      } catch (e) {
+        // Ignore JSON parse errors
+      }
+    }
+  }, [selectedItem]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,10 +94,26 @@ export default function Home() {
     const cutoffDate = fifteenDaysAgo.toISOString();
 
     let query = supabase.from('listings')
-      .select('id, created_at, seller_name, title, price, description, location, image_url, image_urls, seller_phone, category, is_sold, bumped_at')
-      .or(`is_sold.eq.false,and(is_sold.eq.true,bumped_at.gte.${cutoffDate})`)
-      .order('bumped_at', { ascending: false })
-      .range(from, to);
+      .select('id, created_at, seller_name, title, price, description, location, image_url, image_urls, seller_phone, category, is_sold, bumped_at');
+      
+    if (onlyAvailable) {
+      query = query.eq('is_sold', false);
+    } else {
+      query = query.or(`is_sold.eq.false,and(is_sold.eq.true,bumped_at.gte.${cutoffDate})`);
+    }
+
+    if (sortOrder === 'recent') {
+      query = query.order('bumped_at', { ascending: false });
+    } else if (sortOrder === 'price_asc') {
+      query = query.order('price', { ascending: true });
+      // If we order by price, we should still secondary sort by bumped_at
+      query = query.order('bumped_at', { ascending: false });
+    } else if (sortOrder === 'price_desc') {
+      query = query.order('price', { ascending: false });
+      query = query.order('bumped_at', { ascending: false });
+    }
+
+    query = query.range(from, to);
       
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
@@ -371,6 +404,20 @@ export default function Home() {
             ))}
           </div>
         )}
+
+        {activeTab === 'feed' && (
+          <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
+            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
+              <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-slate-900 focus:ring-slate-900 accent-slate-900" />
+              Solo disponibles
+            </label>
+            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)} className="bg-gray-50 border border-gray-200 text-slate-700 text-sm rounded-lg focus:ring-slate-900 focus:border-slate-900 block p-1.5 font-bold outline-none">
+              <option value="recent">Más recientes</option>
+              <option value="price_asc">Menor precio</option>
+              <option value="price_desc">Mayor precio</option>
+            </select>
+          </div>
+        )}
       </header>
 
       <div className="p-4 max-w-md mx-auto">
@@ -378,7 +425,21 @@ export default function Home() {
         {activeTab === 'guidelines' && renderGuidelinesView()}
         {activeTab === 'feed' && (
           <div className="space-y-4">
-            {listings.length === 0 && !loading ? (
+            {loading && listings.length === 0 ? (
+              [...Array(3)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full animate-pulse">
+                  <div className="w-full h-56 bg-gray-200"></div>
+                  <div className="p-4">
+                    <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+                    <div className="flex justify-between items-end">
+                      <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                      <div className="h-6 bg-gray-200 rounded w-1/4"></div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : listings.length === 0 && !loading ? (
               <div className="text-center mt-12"><p className="text-slate-500 font-bold text-lg">No se encontraron artículos.</p></div>
             ) : (
               // Ad Injection Logic in the mapping

@@ -111,7 +111,7 @@ export default function PostForm() {
                 uploadedUrls.push(publicUrlData.publicUrl);
             }
 
-            const { error: dbError } = await supabase.from('listings').insert([{
+            const { data: insertedData, error: dbError } = await supabase.from('listings').insert([{
                 seller_name: `${firstName} ${lastName}`.trim(),
                 title,
                 price: parseFloat(price),
@@ -122,9 +122,15 @@ export default function PostForm() {
                 seller_phone: cleanPhone,
                 category,
                 secret_pin: pin // NEW: Saves the PIN directly to the database
-            }]);
+            }]).select().single();
 
             if (dbError) throw dbError;
+
+            if (insertedData) {
+                const savedPins = JSON.parse(localStorage.getItem('my_listing_pins') || '{}');
+                savedPins[insertedData.id] = pin;
+                localStorage.setItem('my_listing_pins', JSON.stringify(savedPins));
+            }
 
             localStorage.setItem('lastPostTime', Date.now().toString());
             setCooldown(60);
