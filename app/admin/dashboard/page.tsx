@@ -139,6 +139,9 @@ export default function AdminDashboard() {
                         <h1 className="text-3xl font-black text-slate-900">Panel de Control</h1>
                         <p className="text-sm text-slate-500 font-bold">Admin Dashboard</p>
                     </div>
+                    <button onClick={() => router.push('/admin/raffle')} className="bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold px-4 py-2 rounded-lg transition-colors">
+                        🎰 Rifa
+                    </button>
                     <button onClick={() => { supabase.auth.signOut(); router.push('/admin'); }} className="bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors">
                         Logout
                     </button>
