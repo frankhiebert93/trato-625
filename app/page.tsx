@@ -4,6 +4,7 @@ import React from 'react';
 import PostForm from '../components/CameraCapture';
 import ListingCard from '../components/ListingCard';
 import { supabase } from '../lib/supabase';
+import { hashPin } from '../lib/pinUtils';
 
 const ITEMS_PER_PAGE = 10;
 const CATEGORIES = [
@@ -158,13 +159,14 @@ export default function Home() {
     }
 
     setSoldLoading(true);
-    
+
+    const hashedPin = await hashPin(verifyPin);
     const { data, error } = await supabase
       .from('listings')
       .update({ is_sold: true })
       .eq('id', selectedItem.id)
-      .eq('secret_pin', verifyPin)
-      .select(); 
+      .eq('secret_pin', hashedPin)
+      .select();
 
     if (error) {
       alert("Hubo un error de conexión al servidor.");
