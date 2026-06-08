@@ -2,6 +2,9 @@
 import { useState, useEffect } from 'react';
 import { compressImage } from '../lib/imageUtils';
 import { supabase } from '../lib/supabase';
+import { hashPin } from '../lib/pinUtils';
+
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
 const CATEGORIES = [
     { val: 'Vehículos', es: 'Vehículos', en: 'Vehicles' },
@@ -47,6 +50,11 @@ export default function PostForm() {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const selected = Array.from(e.target.files);
+            const invalid = selected.filter(f => !ALLOWED_MIME_TYPES.includes(f.type));
+            if (invalid.length > 0) {
+                alert('Solo se permiten imágenes (JPG, PNG, WEBP, HEIC). / Only image files are allowed.');
+                return;
+            }
             if (selected.length > 5) {
                 alert('Máximo 5 fotos permitidas. / Max 5 photos allowed.');
                 setFiles(selected.slice(0, 5));
@@ -98,6 +106,7 @@ export default function PostForm() {
         setUploading(true);
 
         try {
+            const hashedPin = await hashPin(pin);
             const uploadedUrls: string[] = [];
 
             for (const file of files) {
@@ -121,7 +130,7 @@ export default function PostForm() {
                 image_urls: uploadedUrls,
                 seller_phone: cleanPhone,
                 category,
-                secret_pin: pin // NEW: Saves the PIN directly to the database
+                secret_pin: hashedPin
             }]).select().single();
 
             if (dbError) throw dbError;
