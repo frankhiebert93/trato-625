@@ -74,6 +74,14 @@ export default function RafflePage() {
     setTimeout(spin, delay);
   }
 
+  async function handleDelete(id: string) {
+    if (!window.confirm('¿Eliminar este artículo de la rifa y del mercado?')) return;
+    const { error } = await supabase.from('listings').delete().eq('id', id);
+    if (error) { alert('Error: ' + error.message); return; }
+    setEntries(entries.filter(e => e.id !== id));
+    if (winner?.id === id) setWinner(null);
+  }
+
   function formatPhone(phone: string) {
     const clean = phone.replace(/\D/g, '');
     if (clean.length === 10) return `(${clean.slice(0,3)}) ${clean.slice(3,6)}-${clean.slice(6)}`;
@@ -188,9 +196,10 @@ export default function RafflePage() {
                     <p className="text-sm text-green-600 font-bold">{formatPhone(entry.seller_phone)}</p>
                     <p className="text-xs text-slate-400 truncate">{entry.title}</p>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="shrink-0 text-right flex flex-col items-end gap-1">
                     <p className="text-xs text-slate-400">{new Date(entry.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</p>
                     {isWinner && <p className="text-xs font-black text-amber-600">GANADOR 🏆</p>}
+                    <button onClick={() => handleDelete(entry.id)} className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg transition-colors">Eliminar</button>
                   </div>
                 </div>
               );
