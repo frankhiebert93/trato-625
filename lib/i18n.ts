@@ -90,6 +90,24 @@ const es = {
   installAndroid: '🤖 Android (Chrome)',
   installAndroidBody: 'Toca el letrero de "Instalar aplicación" abajo, o abre el menú (3 puntos) y selecciona "Agregar a la pantalla principal".',
 
+  // safety / moderation
+  report: 'Reportar',
+  reportTitle: '¿Por qué reportas este artículo?',
+  reportDetails: 'Cuéntanos más (opcional)',
+  reportSend: 'Enviar reporte',
+  reportSending: 'Enviando...',
+  reportThanks: 'Gracias. Un administrador revisará este artículo.',
+  reportError: 'No se pudo enviar el reporte. Intenta de nuevo.',
+  reportPickReason: 'Elige un motivo.',
+  blockSeller: 'Bloquear a este vendedor',
+  blockConfirm: '¿Ocultar todos los artículos de este vendedor? Solo afecta a este dispositivo.',
+  blockedOne: 'vendedor bloqueado',
+  blockedMany: 'vendedores bloqueados',
+  showAll: 'Mostrar todos',
+  privacyTitle: 'Aviso de Privacidad',
+  privacyLink: 'Leer el Aviso de Privacidad',
+  moderationNote: 'Revisamos los reportes y eliminamos publicaciones que violen las reglas.',
+
   // alerts
   alertPin4: 'El PIN debe ser de 4 dígitos.',
   alertPinWrong: '❌ El PIN es incorrecto. Intenta de nuevo.',
@@ -196,6 +214,24 @@ const en: Strings = {
   installAndroid: '🤖 Android (Chrome)',
   installAndroidBody: 'Tap the "Install app" banner, or open the menu (3 dots) and select "Add to Home screen".',
 
+  // safety / moderation
+  report: 'Report',
+  reportTitle: 'Why are you reporting this item?',
+  reportDetails: 'Tell us more (optional)',
+  reportSend: 'Send report',
+  reportSending: 'Sending...',
+  reportThanks: 'Thanks. An admin will review this listing.',
+  reportError: "Couldn't send the report. Please try again.",
+  reportPickReason: 'Pick a reason.',
+  blockSeller: 'Block this seller',
+  blockConfirm: 'Hide every listing from this seller? This only affects this device.',
+  blockedOne: 'seller blocked',
+  blockedMany: 'sellers blocked',
+  showAll: 'Show all',
+  privacyTitle: 'Privacy Policy',
+  privacyLink: 'Read the Privacy Policy',
+  moderationNote: 'We review reports and remove listings that break the rules.',
+
   // alerts
   alertPin4: 'PIN must be 4 digits.',
   alertPinWrong: '❌ Wrong PIN. Try again.',
@@ -232,6 +268,17 @@ export const RULES: Record<Lang, { num: string; title: string; body: string }[]>
     { num: '4', title: 'Mark your sales', body: 'When your item sells, use your Secret PIN to mark it "SOLD" so people stop contacting you.' },
   ],
 };
+
+// Report reasons. `val` is stored in the DB and never translated, so the admin
+// queue reads consistently no matter which language the reporter used.
+export const REPORT_REASONS: { val: string; es: string; en: string }[] = [
+  { val: 'prohibited', es: 'Artículo prohibido', en: 'Prohibited item' },
+  { val: 'scam', es: 'Fraude o estafa', en: 'Scam or fraud' },
+  { val: 'offensive', es: 'Contenido ofensivo', en: 'Offensive content' },
+  { val: 'spam', es: 'Spam o duplicado', en: 'Spam or duplicate' },
+  { val: 'false_info', es: 'Información falsa', en: 'False information' },
+  { val: 'other', es: 'Otro', en: 'Other' },
+];
 
 // Category values are stored in Spanish in the DB; only the label switches.
 export const CATEGORIES: { val: string; es: string; en: string }[] = [

@@ -5,10 +5,12 @@ import PostForm from '../components/CameraCapture';
 import ListingCard from '../components/ListingCard';
 import { supabase } from '../lib/supabase';
 import { hashPin } from '../lib/pinUtils';
-import { useLang, useLayout } from '../lib/usePrefs';
+import Link from 'next/link';
+import { useLang, useLayout, useBlockedSellers } from '../lib/usePrefs';
 import {
   T,
   RULES,
+  REPORT_REASONS,
   CATEGORIES,
   ZONES,
   ALL_ZONES,
@@ -68,6 +70,13 @@ export default function Home() {
 
   const [showFullscreen, setShowFullscreen] = useState(false);
 
+  // Safety: reporting a listing, and hiding a seller on this device.
+  const { blocked, blockSeller, clearBlocked } = useBlockedSellers();
+  const [showReport, setShowReport] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportSending, setReportSending] = useState(false);
+
   // Yard-sale event
   const [event, setEvent] = useState<any | null>(null);
   const [showEventPage, setShowEventPage] = useState(false);
@@ -86,7 +95,7 @@ export default function Home() {
       fetchSponsorAd();
       fetchEvent();
     }
-  }, [activeTab, activeCategory, zone, sellerFilter, onlyAvailable, sortOrder, debouncedSearch]);
+  }, [activeTab, activeCategory, zone, sellerFilter, onlyAvailable, sortOrder, debouncedSearch, blocked]);
 
   useEffect(() => {
     if (selectedItem) {
@@ -204,6 +213,8 @@ export default function Home() {
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
     if (zone !== ALL_ZONES) query = query.eq('location', zone);
     if (sellerFilter) query = query.eq('seller_phone', sellerFilter.phone);
+    // Blocked sellers are digits-only, so this interpolation cannot inject.
+    if (blocked.length) query = query.not('seller_phone', 'in', `(${blocked.join(',')})`);
     if (debouncedSearch.trim() !== '') query = query.ilike('title', `%${debouncedSearch}%`);
 
     const { data, error } = await query;
@@ -280,8 +291,42 @@ export default function Home() {
     openWhatsApp(ADMIN_WHATSAPP, boostMessage(selectedItem.title, lang));
   };
 
+  const handleSendReport = async () => {
+    if (!selectedItem) return;
+    if (!reportReason) {
+      alert(t.reportPickReason);
+      return;
+    }
+    setReportSending(true);
+    const { error } = await supabase.from('reports').insert([{
+      listing_id: selectedItem.id,
+      reason: reportReason,
+      details: reportDetails.trim() || null,
+    }]);
+    setReportSending(false);
+
+    if (error) {
+      alert(t.reportError);
+      return;
+    }
+    setShowReport(false);
+    setReportReason('');
+    setReportDetails('');
+    alert(t.reportThanks);
+  };
+
+  const handleBlockSeller = () => {
+    if (!selectedItem?.seller_phone) return;
+    if (!window.confirm(t.blockConfirm)) return;
+    blockSeller(selectedItem.seller_phone);
+    closeDetail();
+  };
+
   const closeDetail = () => {
     setSelectedItem(null);
+    setShowReport(false);
+    setReportReason('');
+    setReportDetails('');
     setShowSoldPrompt(false);
     setVerifyPin('');
     setShowFullscreen(false);
@@ -592,6 +637,72 @@ export default function Home() {
                 </div>
               </>
             )}
+
+            {/* Safety controls. Required by Play's UGC policy and Apple 1.2:
+                a user must be able to flag content and block a seller. */}
+            <div className="mt-6 border-t-2 border-dashed border-muted-border pt-4">
+              {!showReport ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setShowReport(true)}
+                    className="press rounded-[10px] border-2 border-muted-border bg-card px-3 py-2 text-[12px] font-black tracking-[.04em] text-muted uppercase"
+                  >
+                    ⚑ {t.report}
+                  </button>
+                  <button
+                    onClick={handleBlockSeller}
+                    className="press rounded-[10px] border-2 border-muted-border bg-card px-3 py-2 text-[12px] font-black tracking-[.04em] text-muted uppercase"
+                  >
+                    {t.blockSeller}
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-[14px] border-2 border-ink bg-card p-3.5 shadow-hard">
+                  <h4 className="mb-2.5 text-[13px] font-black tracking-[.04em] text-terracotta uppercase">
+                    {t.reportTitle}
+                  </h4>
+                  <div className="flex flex-col gap-1.5">
+                    {REPORT_REASONS.map(r => (
+                      <label key={r.val} className="flex cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-ink">
+                        <input
+                          type="radio"
+                          name="report-reason"
+                          value={r.val}
+                          checked={reportReason === r.val}
+                          onChange={() => setReportReason(r.val)}
+                          className="h-4 w-4 shrink-0 accent-terracotta"
+                        />
+                        {lang === 'es' ? r.es : r.en}
+                      </label>
+                    ))}
+                  </div>
+                  <textarea
+                    value={reportDetails}
+                    onChange={(e) => setReportDetails(e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    placeholder={t.reportDetails}
+                    className="mt-2.5 w-full box-border rounded-[10px] border-2 border-ink bg-cream p-2.5 text-[13px] font-semibold text-ink outline-none placeholder:text-faint"
+                  />
+                  <div className="mt-2.5 flex gap-2">
+                    <button
+                      onClick={handleSendReport}
+                      disabled={reportSending}
+                      className="flex-1 rounded-[10px] border-2 border-ink bg-terracotta p-2.5 text-[13px] font-black text-card disabled:opacity-70"
+                    >
+                      {reportSending ? t.reportSending : t.reportSend}
+                    </button>
+                    <button
+                      onClick={() => { setShowReport(false); setReportReason(''); setReportDetails(''); }}
+                      className="rounded-[10px] border-2 border-ink bg-card px-4 py-2.5 text-[13px] font-black text-ink"
+                    >
+                      {t.cancel}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[10px] font-semibold text-faint">{t.moderationNote}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="sticky bottom-0 z-20 mt-auto flex w-full gap-2.5 border-t-2 border-ink bg-card px-4 pt-3.5 pb-[max(1.375rem,env(safe-area-inset-bottom))]">
@@ -643,6 +754,13 @@ export default function Home() {
           {t.adminNote}
         </p>
       </div>
+
+      <Link
+        href="/privacidad"
+        className="press block rounded-[14px] border-2 border-ink bg-card px-4 py-3.5 text-center text-[13px] font-black text-terracotta shadow-hard active:shadow-hard-xs"
+      >
+        {t.privacyLink} →
+      </Link>
 
       <div className="mt-2 rounded-[14px] border-2 border-ink bg-card p-4 shadow-hard">
         <h3 className="font-display text-base text-ink">{t.installTitle}</h3>
@@ -793,6 +911,18 @@ export default function Home() {
               >
                 <span className="truncate">👤 {sellerFilter.name}</span>
                 <span className="ml-2 shrink-0">✕</span>
+              </button>
+            )}
+
+            {blocked.length > 0 && (
+              <button
+                onClick={clearBlocked}
+                className="press mb-4 flex w-full items-center justify-between rounded-xl border-2 border-muted-border bg-card px-3.5 py-2.5 text-[11px] font-black tracking-[.04em] text-muted uppercase"
+              >
+                <span>
+                  {blocked.length} {blocked.length === 1 ? t.blockedOne : t.blockedMany}
+                </span>
+                <span className="ml-2 shrink-0 text-terracotta">{t.showAll}</span>
               </button>
             )}
 

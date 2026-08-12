@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
-import { ZONES, fmtPrice, fmtTime, dropPercent } from '../../../lib/i18n';
+import { ZONES, REPORT_REASONS, fmtPrice, fmtTime, dropPercent } from '../../../lib/i18n';
 
 const EMPTY_EVENT = {
     family_name: '',
@@ -34,6 +34,8 @@ export default function AdminDashboard() {
     const [adLoading, setAdLoading] = useState(false);
 
     // --- YARD SALE EVENTS STATE ---
+    const [reports, setReports] = useState<any[]>([]);
+
     const [events, setEvents] = useState<any[]>([]);
     const [eventForm, setEventForm] = useState({ ...EMPTY_EVENT });
     const [eventLoading, setEventLoading] = useState(false);
@@ -43,6 +45,7 @@ export default function AdminDashboard() {
         fetchListings();
         fetchAds();
         fetchEvents();
+        fetchReports();
     }, []);
 
     async function checkUser() {
@@ -119,6 +122,39 @@ export default function AdminDashboard() {
             const fileName = imageUrl.split('/').pop();
             if (fileName) await supabase.storage.from('listings').remove([fileName]);
         }
+    }
+
+    // --- REPORTS ---
+    async function fetchReports() {
+        const { data, error } = await supabase
+            .from('reports')
+            .select('*, listings(id, title, image_url, image_urls, seller_name, seller_phone, is_sold)')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        if (!error && data) setReports(data);
+    }
+
+    async function setReportStatus(id: string, status: string) {
+        const { error } = await supabase.from('reports').update({ status }).eq('id', id);
+        if (error) alert('Error: ' + error.message);
+        else setReports(reports.map(r => r.id === id ? { ...r, status } : r));
+    }
+
+    // Removing the listing resolves every report filed against it.
+    async function removeReportedListing(report: any) {
+        const item = report.listings;
+        if (!item) return;
+        if (!window.confirm(`¿Eliminar "${item.title}"? Se borrará el artículo y sus fotos.`)) return;
+
+        const { error } = await supabase.from('listings').delete().eq('id', item.id);
+        if (error) { alert('Error: ' + error.message); return; }
+
+        const files = (item.image_urls || (item.image_url ? [item.image_url] : []))
+            .map((url: string) => url.split('/').pop()).filter(Boolean);
+        if (files.length) await supabase.storage.from('listings').remove(files);
+
+        setListings(listings.filter(l => l.id !== item.id));
+        setReports(reports.map(r => r.listings?.id === item.id ? { ...r, status: 'actioned', listings: null } : r));
     }
 
     // --- YARD SALE EVENT FUNCTIONS ---
@@ -352,6 +388,85 @@ export default function AdminDashboard() {
                         })
                     )}
                 </div>
+
+                {/* --- SECTION 2b: REPORTED LISTINGS --- */}
+                {(() => {
+                    const pending = reports.filter(r => r.status === 'pending');
+                    return (
+                        <>
+                            <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">
+                                🚩 Reportes
+                                {pending.length > 0 && (
+                                    <span className="bg-red-600 text-white text-xs font-black px-2.5 py-1 rounded-full">
+                                        {pending.length} sin revisar
+                                    </span>
+                                )}
+                            </h2>
+                            <p className="text-sm text-slate-500 font-medium mb-4">
+                                Los usuarios reportan anuncios desde la app. Revísalos pronto: las tiendas exigen que actúes rápido.
+                            </p>
+                            <div className="space-y-4 mb-12">
+                                {reports.length === 0 ? (
+                                    <p className="text-sm text-gray-500 italic">No hay reportes. 🎉</p>
+                                ) : (
+                                    reports.map((r) => {
+                                        const item = r.listings;
+                                        const reason = REPORT_REASONS.find(x => x.val === r.reason);
+                                        const isPending = r.status === 'pending';
+                                        return (
+                                            <div key={r.id} className={`bg-white p-4 rounded-xl shadow-sm border ${isPending ? 'border-red-400' : 'border-gray-200 opacity-75'}`}>
+                                                <div className="flex flex-col sm:flex-row items-start gap-4">
+                                                    {item ? (
+                                                        <img src={item.image_urls?.[0] || item.image_url} alt="" className="w-20 h-20 object-cover rounded-md bg-gray-100 shrink-0" />
+                                                    ) : (
+                                                        <div className="w-20 h-20 rounded-md bg-gray-100 shrink-0 flex items-center justify-center text-xs text-gray-400 font-bold text-center">Eliminado</div>
+                                                    )}
+                                                    <div className="flex-grow min-w-0">
+                                                        <p className="text-xs font-black text-red-700 uppercase tracking-wide">
+                                                            {reason ? reason.es : r.reason}
+                                                        </p>
+                                                        <h3 className="font-bold text-slate-900 leading-tight">
+                                                            {item ? item.title : '(artículo ya eliminado)'}
+                                                        </h3>
+                                                        {item && (
+                                                            <p className="text-xs text-slate-500 mt-0.5">
+                                                                {item.seller_name} · {item.seller_phone}
+                                                            </p>
+                                                        )}
+                                                        {r.details && (
+                                                            <p className="text-sm text-slate-700 mt-1.5 bg-slate-50 border border-slate-200 rounded p-2 break-words">
+                                                                “{r.details}”
+                                                            </p>
+                                                        )}
+                                                        <p className="text-[11px] text-gray-400 mt-1">
+                                                            {new Date(r.created_at).toLocaleString('es-MX')} · {r.status}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+                                                        {item && (
+                                                            <button onClick={() => removeReportedListing(r)} className="bg-red-600 text-white font-bold px-3 py-2 rounded-lg text-xs">
+                                                                Eliminar artículo
+                                                            </button>
+                                                        )}
+                                                        {isPending ? (
+                                                            <button onClick={() => setReportStatus(r.id, 'reviewed')} className="bg-gray-100 text-gray-700 font-bold px-3 py-2 rounded-lg text-xs">
+                                                                Marcar revisado
+                                                            </button>
+                                                        ) : (
+                                                            <button onClick={() => setReportStatus(r.id, 'pending')} className="bg-gray-100 text-gray-500 font-bold px-3 py-2 rounded-lg text-xs">
+                                                                Reabrir
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </>
+                    );
+                })()}
 
                 {/* --- SECTION 3: CREATE YARD SALE EVENT --- */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
