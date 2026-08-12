@@ -2,6 +2,18 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { ZONES, fmtPrice, fmtTime, dropPercent } from '../../../lib/i18n';
+
+const EMPTY_EVENT = {
+    family_name: '',
+    zone: ZONES[0],
+    address: '',
+    event_date: '',
+    start_time: '08:00',
+    end_time: '14:00',
+    description: '',
+    whatsapp: '',
+};
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -9,6 +21,7 @@ export default function AdminDashboard() {
     // --- LISTINGS STATE ---
     const [listings, setListings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
 
     // --- ADS STATE ---
     const [ads, setAds] = useState<any[]>([]);
@@ -20,10 +33,16 @@ export default function AdminDashboard() {
     const [adFile, setAdFile] = useState<File | null>(null);
     const [adLoading, setAdLoading] = useState(false);
 
+    // --- YARD SALE EVENTS STATE ---
+    const [events, setEvents] = useState<any[]>([]);
+    const [eventForm, setEventForm] = useState({ ...EMPTY_EVENT });
+    const [eventLoading, setEventLoading] = useState(false);
+
     useEffect(() => {
         checkUser();
         fetchListings();
         fetchAds();
+        fetchEvents();
     }, []);
 
     async function checkUser() {
@@ -102,11 +121,124 @@ export default function AdminDashboard() {
         }
     }
 
+    // --- YARD SALE EVENT FUNCTIONS ---
+    async function fetchEvents() {
+        const { data, error } = await supabase
+            .from('yard_sale_events')
+            .select('*')
+            .order('event_date', { ascending: false });
+        if (!error && data) setEvents(data);
+    }
+
+    const handleSaveEvent = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (!eventForm.family_name.trim() || !eventForm.event_date) {
+            alert('La familia y la fecha son obligatorias. / Family and date are required.');
+            return;
+        }
+
+        const cleanPhone = eventForm.whatsapp.replace(/\D/g, '');
+        if (cleanPhone && cleanPhone.length !== 10) {
+            alert('El WhatsApp debe tener 10 dígitos. / WhatsApp must be 10 digits.');
+            return;
+        }
+
+        setEventLoading(true);
+        try {
+            const { error } = await supabase.from('yard_sale_events').insert([{
+                family_name: eventForm.family_name.trim(),
+                zone: eventForm.zone.trim() || null,
+                address: eventForm.address.trim() || null,
+                event_date: eventForm.event_date,
+                start_time: eventForm.start_time || null,
+                end_time: eventForm.end_time || null,
+                description: eventForm.description.trim() || null,
+                whatsapp: cleanPhone || null,
+                is_active: true,
+            }]);
+
+            if (error) throw error;
+
+            alert('¡Venta de yarda creada! / Yard sale created!');
+            setEventForm({ ...EMPTY_EVENT });
+            fetchEvents();
+        } catch (error: any) {
+            alert('Error: ' + error.message);
+        } finally {
+            setEventLoading(false);
+        }
+    };
+
+    async function toggleEventActive(id: string, currentStatus: boolean) {
+        const { error } = await supabase.from('yard_sale_events').update({ is_active: !currentStatus }).eq('id', id);
+        if (error) alert('Error: ' + error.message);
+        else setEvents(events.map(ev => ev.id === id ? { ...ev, is_active: !currentStatus } : ev));
+    }
+
+    async function handleDeleteEvent(id: string, familyName: string) {
+        const attached = listings.filter(l => l.event_id === id).length;
+        const warning = attached > 0
+            ? `\n\n${attached} artículo(s) quedarán sin evento (no se borran).`
+            : '';
+        if (!window.confirm(`¿Eliminar la venta de yarda "${familyName}"?${warning}`)) return;
+
+        const { error } = await supabase.from('yard_sale_events').delete().eq('id', id);
+        if (error) { alert('Error: ' + error.message); return; }
+
+        setEvents(events.filter(ev => ev.id !== id));
+        // The FK is ON DELETE SET NULL, so mirror that in local state.
+        setListings(listings.map(l => l.event_id === id ? { ...l, event_id: null } : l));
+    }
+
+    async function assignListingToEvent(listingId: string, eventId: string) {
+        const value = eventId || null;
+        const { error } = await supabase.from('listings').update({ event_id: value }).eq('id', listingId);
+        if (error) alert('Error: ' + error.message);
+        else setListings(listings.map(l => l.id === listingId ? { ...l, event_id: value } : l));
+    }
+
     // --- LISTINGS FUNCTIONS ---
     async function fetchListings() {
         const { data, error } = await supabase.from('listings').select('*').order('created_at', { ascending: false });
         if (!error && data) setListings(data);
         setLoading(false);
+    }
+
+    // Lowering a price stashes the previous one in `old_price`, which is what
+    // drives the "¡Bajó X%!" sticker in the feed. Keep the highest price ever
+    // seen so repeated drops show the total markdown, not just the last step.
+    async function handleLowerPrice(item: any) {
+        const raw = priceDrafts[item.id];
+        const newPrice = parseFloat(raw);
+        const currentPrice = Number(item.price);
+
+        if (!raw || Number.isNaN(newPrice) || newPrice <= 0) {
+            alert('Escribe un precio válido. / Enter a valid price.');
+            return;
+        }
+        if (newPrice >= currentPrice) {
+            alert(`El precio nuevo debe ser menor que ${fmtPrice(currentPrice)}. / New price must be lower.`);
+            return;
+        }
+
+        const oldPrice = Math.max(currentPrice, Number(item.old_price) || 0);
+
+        const { error } = await supabase
+            .from('listings')
+            .update({ price: newPrice, old_price: oldPrice })
+            .eq('id', item.id);
+
+        if (error) { alert('Error: ' + error.message); return; }
+
+        setListings(listings.map(l => l.id === item.id ? { ...l, price: newPrice, old_price: oldPrice } : l));
+        setPriceDrafts({ ...priceDrafts, [item.id]: '' });
+    }
+
+    async function handleClearOldPrice(id: string) {
+        const { error } = await supabase.from('listings').update({ old_price: null }).eq('id', id);
+        if (error) alert('Error: ' + error.message);
+        else setListings(listings.map(l => l.id === id ? { ...l, old_price: null } : l));
     }
 
     async function toggleSold(id: string, currentStatus: boolean) {
@@ -221,29 +353,191 @@ export default function AdminDashboard() {
                     )}
                 </div>
 
-                {/* --- SECTION 3: LISTINGS MANAGEMENT --- */}
-                <h2 className="text-xl font-black text-slate-900 mb-4">Moderación de Artículos</h2>
+                {/* --- SECTION 3: CREATE YARD SALE EVENT --- */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                    <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">🏡 Nueva Venta de Yarda</h2>
+                    <p className="text-sm text-slate-500 font-medium mb-4">
+                        Aparece como banner verde arriba del feed. Se oculta sola cuando pasa la fecha.
+                    </p>
+                    <form onSubmit={handleSaveEvent} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold mb-1">Familia</label>
+                                <input type="text" value={eventForm.family_name} onChange={(e) => setEventForm({ ...eventForm, family_name: e.target.value })} placeholder="Ej. Familia Wiebe" className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1">Zona</label>
+                                <input type="text" list="zone-options" value={eventForm.zone} onChange={(e) => setEventForm({ ...eventForm, zone: e.target.value })} placeholder="Ej. Campo 6½" className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                                <datalist id="zone-options">
+                                    {ZONES.map(z => <option key={z} value={z} />)}
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold mb-1">Dirección</label>
+                                <input type="text" value={eventForm.address} onChange={(e) => setEventForm({ ...eventForm, address: e.target.value })} placeholder="Ej. Km 4" className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1">WhatsApp (10 Dígitos)</label>
+                                <input type="tel" value={eventForm.whatsapp} onChange={(e) => setEventForm({ ...eventForm, whatsapp: e.target.value })} placeholder="625..." className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-bold mb-1 text-green-700">Fecha</label>
+                                <input type="date" value={eventForm.event_date} onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })} className="w-full border-2 border-green-200 rounded-lg p-2.5 bg-green-50 outline-none font-bold text-gray-700" required />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1">Empieza</label>
+                                <input type="time" value={eventForm.start_time} onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })} className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold mb-1">Termina</label>
+                                <input type="time" value={eventForm.end_time} onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })} className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold mb-1">Descripción</label>
+                            <textarea value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} rows={2} placeholder="Vendemos de todo antes de la mudanza..." className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                        </div>
+
+                        <button type="submit" disabled={eventLoading} className="w-full bg-green-700 text-white font-black py-3 rounded-lg mt-2 hover:bg-green-800 transition-all disabled:bg-gray-400">
+                            {eventLoading ? 'Guardando...' : 'Crear Venta de Yarda'}
+                        </button>
+                    </form>
+                </div>
+
+                {/* --- SECTION 4: MANAGE YARD SALE EVENTS --- */}
+                <h2 className="text-xl font-black text-slate-900 mb-4">Gestión de Ventas de Yarda</h2>
+                <div className="space-y-4 mb-12">
+                    {events.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">No hay ventas de yarda creadas todavía.</p>
+                    ) : (
+                        events.map((ev) => {
+                            const isPast = new Date(`${ev.event_date}T23:59:59`) < new Date();
+                            const attached = listings.filter(l => l.event_id === ev.id).length;
+                            const hours = [ev.start_time, ev.end_time].map(fmtTime).filter(Boolean).join('–');
+                            return (
+                                <div key={ev.id} className={`bg-white p-4 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center gap-4 border ${ev.is_active && !isPast ? 'border-green-500' : 'border-gray-200 opacity-75'}`}>
+                                    <div className="w-16 h-16 shrink-0 rounded-lg bg-amber-300 border-2 border-slate-900 flex flex-col items-center justify-center">
+                                        <span className="font-black text-lg leading-none text-slate-900">
+                                            {new Date(`${ev.event_date}T12:00:00`).toLocaleDateString('es-MX', { weekday: 'short' }).replace('.', '').toUpperCase()}
+                                        </span>
+                                        <span className="text-xs font-black text-red-700 leading-none mt-0.5">
+                                            {new Date(`${ev.event_date}T12:00:00`).getDate()}
+                                        </span>
+                                    </div>
+                                    <div className="flex-grow min-w-0">
+                                        <h3 className="font-bold text-slate-900 leading-tight">
+                                            {ev.family_name}{ev.zone ? ` — ${ev.zone}` : ''}
+                                        </h3>
+                                        <p className="text-xs text-gray-500">
+                                            {new Date(`${ev.event_date}T12:00:00`).toLocaleDateString('es-MX')}
+                                            {hours && ` · ${hours}`}
+                                            {ev.address && ` · ${ev.address}`}
+                                        </p>
+                                        <p className="text-xs font-bold mt-1">
+                                            <span className="text-green-700">{attached} artículo(s)</span>
+                                            {isPast && <span className="ml-3 text-red-500">Ya pasó</span>}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+                                        <button onClick={() => toggleEventActive(ev.id, ev.is_active)} className={`font-bold px-3 py-1.5 rounded-lg text-xs transition-colors ${ev.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>
+                                            {ev.is_active ? 'Activo (Apagar)' : 'Apagado (Encender)'}
+                                        </button>
+                                        <button onClick={() => handleDeleteEvent(ev.id, ev.family_name)} className="bg-red-50 text-red-600 font-bold px-3 py-1.5 rounded-lg text-xs">
+                                            Eliminar
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
+                {/* --- SECTION 5: LISTINGS MANAGEMENT --- */}
+                <h2 className="text-xl font-black text-slate-900 mb-1">Moderación de Artículos</h2>
+                <p className="text-sm text-slate-500 font-medium mb-4">
+                    Baja el precio para mostrar el sticker "¡Bajó X%!" en el feed, o asigna el artículo a una venta de yarda.
+                </p>
                 {loading ? (
                     <p className="text-center font-bold text-gray-500">Cargando artículos...</p>
                 ) : (
                     <div className="space-y-4">
-                        {listings.map((item) => (
-                            <div key={item.id} className={`bg-white p-4 rounded-xl shadow-sm flex flex-col sm:flex-row items-center gap-4 border ${item.is_sold ? 'border-red-200 bg-red-50/50' : 'border-gray-100'}`}>
-                                <div className="relative shrink-0">
-                                    <img src={item.image_urls?.[0] || item.image_url} alt="thumbnail" className={`w-20 h-20 object-cover rounded-md bg-gray-100 ${item.is_sold ? 'grayscale opacity-50' : ''}`} />
+                        {listings.map((item) => {
+                            const drop = dropPercent(Number(item.price), item.old_price);
+                            return (
+                            <div key={item.id} className={`bg-white p-4 rounded-xl shadow-sm border ${item.is_sold ? 'border-red-200 bg-red-50/50' : 'border-gray-100'}`}>
+                                <div className="flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="relative shrink-0">
+                                        <img src={item.image_urls?.[0] || item.image_url} alt="thumbnail" className={`w-20 h-20 object-cover rounded-md bg-gray-100 ${item.is_sold ? 'grayscale opacity-50' : ''}`} />
+                                    </div>
+                                    <div className="flex-grow w-full text-center sm:text-left">
+                                        <h3 className={`font-bold ${item.is_sold ? 'text-gray-500 line-through' : 'text-slate-900'}`}>{item.title}</h3>
+                                        <p className="text-xs text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded mt-1 border border-slate-200"><span className="font-bold">Vendedor:</span> {item.seller_name}</p>
+                                        <p className="text-sm font-black text-slate-900 mt-1">
+                                            {fmtPrice(item.price)}
+                                            {drop !== null && (
+                                                <>
+                                                    <span className="ml-2 text-xs font-bold text-gray-400 line-through">{fmtPrice(item.old_price)}</span>
+                                                    <span className="ml-2 text-xs font-black text-white bg-red-600 px-2 py-0.5 rounded">↓ {drop}%</span>
+                                                </>
+                                            )}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
+                                        <button onClick={() => toggleSold(item.id, item.is_sold)} className={`font-bold px-3 py-2 rounded-lg text-xs transition-colors ${item.is_sold ? 'bg-gray-200 text-gray-700' : 'bg-green-100 text-green-700'}`}>
+                                            {item.is_sold ? 'Revive (Unsold)' : 'Mark Sold'}
+                                        </button>
+                                        <button onClick={() => handleDeleteListing(item.id, item)} className="bg-red-50 text-red-600 font-bold px-3 py-2 rounded-lg text-xs">Delete</button>
+                                    </div>
                                 </div>
-                                <div className="flex-grow w-full text-center sm:text-left">
-                                    <h3 className={`font-bold ${item.is_sold ? 'text-gray-500 line-through' : 'text-slate-900'}`}>{item.title}</h3>
-                                    <p className="text-xs text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded mt-1 border border-slate-200"><span className="font-bold">Vendedor:</span> {item.seller_name}</p>
-                                </div>
-                                <div className="flex flex-wrap sm:flex-col gap-2 shrink-0">
-                                    <button onClick={() => toggleSold(item.id, item.is_sold)} className={`font-bold px-3 py-2 rounded-lg text-xs transition-colors ${item.is_sold ? 'bg-gray-200 text-gray-700' : 'bg-green-100 text-green-700'}`}>
-                                        {item.is_sold ? 'Revive (Unsold)' : 'Mark Sold'}
-                                    </button>
-                                    <button onClick={() => handleDeleteListing(item.id, item)} className="bg-red-50 text-red-600 font-bold px-3 py-2 rounded-lg text-xs">Delete</button>
+
+                                <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Bajar precio</label>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={priceDrafts[item.id] ?? ''}
+                                                onChange={(e) => setPriceDrafts({ ...priceDrafts, [item.id]: e.target.value })}
+                                                placeholder="Precio nuevo"
+                                                className="flex-1 min-w-0 border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
+                                            />
+                                            <button onClick={() => handleLowerPrice(item)} className="bg-slate-900 text-white font-bold px-3 rounded-lg text-xs hover:bg-slate-800 transition-colors shrink-0">
+                                                Bajar
+                                            </button>
+                                            {drop !== null && (
+                                                <button onClick={() => handleClearOldPrice(item.id)} title="Quitar el sticker de rebaja" className="bg-gray-100 text-gray-600 font-bold px-3 rounded-lg text-xs shrink-0">
+                                                    Quitar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Venta de yarda</label>
+                                        <select
+                                            value={item.event_id || ''}
+                                            onChange={(e) => assignListingToEvent(item.id, e.target.value)}
+                                            className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                            <option value="">— Sin evento —</option>
+                                            {events.map(ev => (
+                                                <option key={ev.id} value={ev.id}>
+                                                    {ev.family_name}{ev.zone ? ` — ${ev.zone}` : ''} ({new Date(`${ev.event_date}T12:00:00`).toLocaleDateString('es-MX')})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

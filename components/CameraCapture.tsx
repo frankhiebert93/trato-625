@@ -3,31 +3,32 @@ import { useState, useEffect } from 'react';
 import { compressImage } from '../lib/imageUtils';
 import { supabase } from '../lib/supabase';
 import { hashPin } from '../lib/pinUtils';
+import { T, CATEGORIES, ZONES, type Lang } from '../lib/i18n';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
-const CATEGORIES = [
-    { val: 'Vehículos', es: 'Vehículos', en: 'Vehicles' },
-    { val: 'Herramientas', es: 'Herramientas', en: 'Tools' },
-    { val: 'Electrónica', es: 'Electrónica', en: 'Electronics' },
-    { val: 'Hogar', es: 'Hogar', en: 'Home' },
-    { val: 'Materiales', es: 'Materiales', en: 'Materials' },
-    { val: 'Otros', es: 'Otros', en: 'Others' }
-];
+// Category values are stored in Spanish; 'Todos' is a filter-only value.
+const POST_CATEGORIES = CATEGORIES.filter(c => c.val !== 'Todos');
 
-export default function PostForm() {
+const inputClass =
+    'w-full box-border border-2 border-ink rounded-[10px] p-[11px] bg-cream outline-none font-semibold text-ink placeholder:text-faint focus:bg-card';
+const labelClass = 'block mb-[5px] text-[13px] font-black uppercase tracking-[.05em] text-ink';
+
+export default function PostForm({ lang }: { lang: Lang }) {
+    const t = T[lang];
+
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [title, setTitle] = useState('');
     const [price, setPrice] = useState('');
     const [phone, setPhone] = useState('');
-    const [category, setCategory] = useState(CATEGORIES[0].val);
-    const [location, setLocation] = useState('');
+    const [category, setCategory] = useState(POST_CATEGORIES[0].val);
+    const [location, setLocation] = useState(ZONES[0]);
     const [description, setDescription] = useState('');
     const [pin, setPin] = useState(''); // NEW: Secret PIN state
     const [files, setFiles] = useState<File[]>([]);
     const [uploading, setUploading] = useState(false);
-    const [agreed, setAgreed] = useState(false); 
+    const [agreed, setAgreed] = useState(false);
     const [cooldown, setCooldown] = useState(0);
 
     useEffect(() => {
@@ -52,11 +53,11 @@ export default function PostForm() {
             const selected = Array.from(e.target.files);
             const invalid = selected.filter(f => !ALLOWED_MIME_TYPES.includes(f.type));
             if (invalid.length > 0) {
-                alert('Solo se permiten imágenes (JPG, PNG, WEBP, HEIC). / Only image files are allowed.');
+                alert(t.alertOnlyImages);
                 return;
             }
             if (selected.length > 5) {
-                alert('Máximo 5 fotos permitidas. / Max 5 photos allowed.');
+                alert(t.alertMaxPhotos);
                 setFiles(selected.slice(0, 5));
             } else {
                 setFiles(selected);
@@ -68,38 +69,38 @@ export default function PostForm() {
         e.preventDefault();
 
         if (cooldown > 0) {
-            alert(`Por favor espera ${cooldown} segundos antes de publicar. / Please wait.`);
+            alert(`${t.alertCooldownPrefix} ${cooldown} ${t.alertCooldownSuffix}`);
             return;
         }
 
         if (!firstName.trim() || !lastName.trim()) {
-            alert('El nombre y apellido son obligatorios. / First and last name are mandatory.');
+            alert(t.alertNameRequired);
             return;
         }
 
         if (title.trim().length < 4) {
-            alert('El título es muy corto. Escribe al menos 4 letras. / Title is too short.');
+            alert(t.alertTitleShort);
             return;
         }
 
-        const cleanPhone = phone.replace(/\D/g, ''); 
+        const cleanPhone = phone.replace(/\D/g, '');
         if (cleanPhone.length !== 10) {
-            alert('El número de WhatsApp debe tener exactamente 10 dígitos. / Phone must be 10 digits.');
+            alert(t.alertPhone10);
             return;
         }
 
         if (pin.length !== 4) {
-            alert('El PIN de seguridad debe tener exactamente 4 dígitos. / PIN must be exactly 4 digits.');
+            alert(t.alertPinCreate);
             return;
         }
 
         if (!agreed) {
-            alert('Debes aceptar las reglas de la comunidad para publicar. / You must agree to guidelines.');
+            alert(t.alertAgree);
             return;
         }
 
         if (files.length === 0 || !title || !price || !phone) {
-            alert('Por favor llena los campos requeridos y toma al menos 1 foto.');
+            alert(t.alertRequired);
             return;
         }
 
@@ -144,9 +145,9 @@ export default function PostForm() {
             localStorage.setItem('lastPostTime', Date.now().toString());
             setCooldown(60);
 
-            alert('¡Artículo publicado! / Item successfully posted!');
+            alert(t.alertPosted);
             setFirstName(''); setLastName(''); setTitle(''); setPrice(''); setPhone('');
-            setLocation(''); setDescription(''); setPin(''); setCategory(CATEGORIES[0].val); setFiles([]); setAgreed(false);
+            setLocation(ZONES[0]); setDescription(''); setPin(''); setCategory(POST_CATEGORIES[0].val); setFiles([]); setAgreed(false);
         } catch (error: any) {
             alert('Error: ' + (error.message || 'Failed to post item.'));
         } finally {
@@ -155,110 +156,118 @@ export default function PostForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit} className="w-full max-w-md bg-white rounded-xl shadow-lg p-6 space-y-5 text-slate-800 mb-8">
-            <div className="text-center border-b border-gray-100 pb-4 mb-2">
-                <h2 className="text-xl font-black text-slate-900">Vender un Artículo</h2>
-                <p className="text-sm text-slate-400 font-medium -mt-1">Sell an Item</p>
+        <form
+            onSubmit={handleSubmit}
+            className="mb-8 flex w-full flex-col gap-4 rounded-2xl border-2 border-ink bg-card p-5 text-ink shadow-hard-lg"
+        >
+            <div className="border-b-2 border-dashed border-muted-border pb-3.5 text-center">
+                <h2 className="font-display text-[22px] text-ink">{t.sellTitle}</h2>
+                <p className="mt-1 text-xs font-extrabold tracking-[.14em] text-green uppercase">{t.sellSub}</p>
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 text-center">Datos Privados / Private Data (Solo Admin)</p>
-                <div className="flex gap-3">
-                    <div className="flex-1">
-                        <input type="text" placeholder="Nombre" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
-                    </div>
-                    <div className="flex-1">
-                        <input type="text" placeholder="Apellido" value={lastName} onChange={(e) => setLastName(e.target.value)} className="w-full border rounded-md p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none" required />
-                    </div>
+            <div className="rounded-xl border-2 border-ink bg-cream p-3">
+                <p className="mb-2 text-center text-[10px] font-black tracking-[.1em] text-muted uppercase">
+                    {t.privateData}
+                </p>
+                <div className="flex gap-2.5">
+                    <input
+                        type="text"
+                        placeholder={t.firstName}
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="min-w-0 flex-1 box-border rounded-[10px] border-2 border-ink bg-card p-2.5 text-sm font-semibold text-ink outline-none placeholder:text-faint"
+                        required
+                    />
+                    <input
+                        type="text"
+                        placeholder={t.lastName}
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="min-w-0 flex-1 box-border rounded-[10px] border-2 border-ink bg-card p-2.5 text-sm font-semibold text-ink outline-none placeholder:text-faint"
+                        required
+                    />
                 </div>
             </div>
 
             <div>
-                <label className="block mb-1">
-                    <span className="text-sm font-bold text-slate-800">¿Qué estás vendiendo?</span>
-                </label>
-                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" required />
+                <label className={labelClass}>{t.whatSelling}</label>
+                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={inputClass} required />
             </div>
 
-            <div className="flex gap-4">
-                <div className="flex-1">
-                    <label className="block mb-1">
-                        <span className="text-sm font-bold text-slate-800">Precio (MXN)</span>
-                    </label>
-                    <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" required />
+            <div className="flex gap-2.5">
+                <div className="min-w-0 flex-1">
+                    <label className={labelClass}>{t.price}</label>
+                    <input type="number" placeholder="$" value={price} onChange={(e) => setPrice(e.target.value)} className={inputClass} required />
                 </div>
-                <div className="flex-1">
-                    <label className="block mb-1">
-                        <span className="text-sm font-bold text-slate-800">WhatsApp (10 Dígitos)</span>
-                    </label>
-                    <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="625..." required />
+                <div className="min-w-0 flex-1">
+                    <label className={labelClass}>WhatsApp</label>
+                    <input type="tel" placeholder="625..." value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} required />
                 </div>
             </div>
 
-            <div>
-                <label className="block mb-1">
-                    <span className="text-sm font-bold text-slate-800">Categoría</span>
-                </label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-                    {CATEGORIES.map(cat => <option key={cat.val} value={cat.val}>{cat.es} / {cat.en}</option>)}
-                </select>
+            <div className="flex gap-2.5">
+                <div className="min-w-0 flex-1">
+                    <label className={labelClass}>{t.category}</label>
+                    <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputClass}>
+                        {POST_CATEGORIES.map(cat => (
+                            <option key={cat.val} value={cat.val}>{lang === 'es' ? cat.es : cat.en}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="min-w-0 flex-1">
+                    <label className={labelClass}>{t.zoneLabel}</label>
+                    <select value={location} onChange={(e) => setLocation(e.target.value)} className={inputClass}>
+                        {ZONES.map(z => <option key={z} value={z}>{z}</option>)}
+                    </select>
+                </div>
             </div>
 
-            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl">
-                <label className="block mb-2 text-center">
-                    <span className="text-sm font-black text-orange-900 block">🔒 PIN de Seguridad (4 Dígitos)</span>
-                    <span className="block text-xs text-orange-700 font-medium leading-tight mt-1">Crea un PIN secreto para marcar esto como "Vendido" después. Anótalo bien.</span>
-                </label>
-                <input 
-                    type="password" 
+            <div className="rounded-xl border-2 border-ink bg-pin p-3.5">
+                <p className="m-0 text-center text-[13px] font-black tracking-[.05em] uppercase">🔒 {t.pinTitle}</p>
+                <p className="mt-1 mb-2.5 text-center text-[11px] leading-[1.4] font-semibold text-muted">{t.pinHelp}</p>
+                <input
+                    type="password"
                     inputMode="numeric"
                     maxLength={4}
-                    value={pin} 
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))} 
-                    className="w-full border-2 border-orange-200 rounded-lg p-3 bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition-all text-center tracking-[0.5em] font-black text-2xl text-slate-800" 
-                    placeholder="••••" 
-                    required 
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                    className="box-border w-full rounded-[10px] border-2 border-ink bg-card p-3 text-center text-2xl font-black tracking-[.5em] text-ink outline-none"
+                    placeholder="••••"
+                    required
                 />
             </div>
 
             <div>
-                <label className="block mb-1">
-                    <span className="text-sm font-bold text-slate-800">Ubicación <span className="font-normal text-gray-400">(Opcional)</span></span>
-                </label>
-                <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ej. Campo 2B, Centro, etc." className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" maxLength={40} />
+                <label className={labelClass}>{t.detailsOptional}</label>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} rows={2} />
             </div>
 
-            <div>
-                <label className="block mb-1">
-                    <span className="text-sm font-bold text-slate-800">Detalles <span className="font-normal text-gray-400">(Opcional)</span></span>
-                </label>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" rows={2} />
-            </div>
-
-            <div className="pt-2">
-                <div className="relative flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center pointer-events-none">
-                        <p className="mb-1 text-sm font-bold text-blue-600">
-                            {files.length > 0 ? `${files.length} foto(s) lista(s)` : 'Toca para agregar fotos (Max 5)'}
-                        </p>
-                    </div>
-                    <input type="file" accept="image/*" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            <div className="relative box-border flex h-[120px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink bg-cream">
+                <div className="pointer-events-none px-4 text-center">
+                    <p className="m-0 text-[13px] font-black tracking-[.05em] text-terracotta uppercase">
+                        {files.length > 0 ? `${files.length} ${t.photosReady}` : t.addPhotos}
+                    </p>
+                    <p className="mt-1 text-[11px] font-semibold text-muted">{t.maxPhotos}</p>
                 </div>
+                <input type="file" accept="image/*" multiple onChange={handleFileChange} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
             </div>
 
-            <div className="flex items-start gap-3 mt-4 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                <div className="flex items-center h-5 mt-1">
-                    <input type="checkbox" id="agree" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                </div>
-                <label htmlFor="agree" className="flex flex-col cursor-pointer">
-                    <span className="text-sm font-bold text-slate-800 leading-tight">He leído y acepto las Reglas de la Comunidad.</span>
-                </label>
-            </div>
+            <label className="flex cursor-pointer items-start gap-2.5">
+                <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-terracotta"
+                />
+                <span className="text-[13px] leading-[1.35] font-bold">{t.agree}</span>
+            </label>
 
-            <button type="submit" disabled={uploading || cooldown > 0} className={`w-full text-white py-3.5 rounded-lg mt-6 transition-all shadow-md flex flex-col items-center justify-center ${cooldown > 0 ? 'bg-gray-400' : 'bg-slate-900 hover:bg-slate-800 disabled:bg-gray-400'}`}>
-                <span className="font-bold text-base leading-none">
-                    {cooldown > 0 ? `Espera ${cooldown}s` : uploading ? 'Publicando...' : 'Publicar Artículo'}
-                </span>
+            <button
+                type="submit"
+                disabled={uploading || cooldown > 0}
+                className={`press w-full rounded-xl border-2 border-ink p-[15px] font-display text-base tracking-[.04em] text-card shadow-hard active:shadow-hard-xs ${cooldown > 0 || uploading ? 'bg-faint' : 'bg-terracotta'}`}
+            >
+                {cooldown > 0 ? `${t.waitSeconds} ${cooldown}s` : uploading ? t.publishing : t.publish}
             </button>
         </form>
     );

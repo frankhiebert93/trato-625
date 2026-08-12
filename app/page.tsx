@@ -1,23 +1,46 @@
 'use client';
 import { useState, useEffect } from 'react';
-import React from 'react'; 
+import React from 'react';
 import PostForm from '../components/CameraCapture';
 import ListingCard from '../components/ListingCard';
 import { supabase } from '../lib/supabase';
 import { hashPin } from '../lib/pinUtils';
+import { useLang, useLayout } from '../lib/usePrefs';
+import {
+  T,
+  RULES,
+  CATEGORIES,
+  ZONES,
+  ALL_ZONES,
+  fmtPrice,
+  fmtTime,
+  timeAgo,
+  dropPercent,
+  initials,
+  waNumber,
+  interestMessage,
+  offerMessage,
+  boostMessage,
+  eventMessage,
+  sellerStats,
+  type Lang,
+} from '../lib/i18n';
 
 const ITEMS_PER_PAGE = 10;
-const CATEGORIES = [
-  { val: 'Todos', es: 'Todos', en: 'All' },
-  { val: 'Vehículos', es: 'Vehículos', en: 'Vehicles' },
-  { val: 'Herramientas', es: 'Herramientas', en: 'Tools' },
-  { val: 'Electrónica', es: 'Electrónica', en: 'Electronics' },
-  { val: 'Hogar', es: 'Hogar', en: 'Home' },
-  { val: 'Materiales', es: 'Materiales', en: 'Materials' },
-  { val: 'Otros', es: 'Otros', en: 'Others' }
-];
+const ADMIN_WHATSAPP = '526251191400';
+
+// Columns the public feed needs. `secret_pin` is deliberately never selected.
+const LISTING_COLUMNS =
+  'id, created_at, seller_name, title, price, old_price, description, location, image_url, image_urls, seller_phone, category, is_sold, is_verified, bumped_at, event_id';
+
+type SellerInfo = { sales: number; since: number | null };
 
 export default function Home() {
+  const [lang, toggleLang] = useLang();
+  const [layout, toggleLayout] = useLayout();
+  const t = T[lang];
+  const grid = layout === 'grid';
+
   const [activeTab, setActiveTab] = useState<'feed' | 'post' | 'guidelines'>('feed');
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +49,10 @@ export default function Home() {
   const [activeAd, setActiveAd] = useState<any | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('Todos');
+  const [zone, setZone] = useState(ALL_ZONES);
+  const [sellerFilter, setSellerFilter] = useState<{ phone: string; name: string } | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
@@ -35,19 +61,32 @@ export default function Home() {
   const [sortOrder, setSortOrder] = useState<'recent' | 'price_asc' | 'price_desc'>('recent');
 
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [sellerInfo, setSellerInfo] = useState<SellerInfo | null>(null);
   const [showSoldPrompt, setShowSoldPrompt] = useState(false);
-  const [verifyPin, setVerifyPin] = useState(''); 
+  const [verifyPin, setVerifyPin] = useState('');
   const [soldLoading, setSoldLoading] = useState(false);
 
   const [showFullscreen, setShowFullscreen] = useState(false);
+
+  // Yard-sale event
+  const [event, setEvent] = useState<any | null>(null);
+  const [showEventPage, setShowEventPage] = useState(false);
+  const [eventItems, setEventItems] = useState<any[]>([]);
+
+  // Debounce the search box so typing doesn't hammer Supabase.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 400);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (activeTab === 'feed') {
       setPage(0);
       fetchListings(0, true);
-      fetchSponsorAd(); 
+      fetchSponsorAd();
+      fetchEvent();
     }
-  }, [activeTab, activeCategory, onlyAvailable, sortOrder]);
+  }, [activeTab, activeCategory, zone, sellerFilter, onlyAvailable, sortOrder, debouncedSearch]);
 
   useEffect(() => {
     if (selectedItem) {
@@ -59,29 +98,73 @@ export default function Home() {
       } catch (e) {
         // Ignore JSON parse errors
       }
+      fetchSellerInfo(selectedItem.seller_phone);
     }
-  }, [selectedItem]);
+  }, [selectedItem?.id]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(0);
-    fetchListings(0, true);
+    setDebouncedSearch(searchQuery);
   };
 
   // Function to grab the active ad from the database (Respecting Expirations)
   async function fetchSponsorAd() {
     const now = new Date().toISOString();
-    
+
     const { data } = await supabase
-        .from('sponsored_ads')
-        .select('*')
-        .eq('is_active', true)
-        .or(`expires_at.is.null,expires_at.gte.${now}`) // Hides the ad if it is expired!
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-        
+      .from('sponsored_ads')
+      .select('*')
+      .eq('is_active', true)
+      .or(`expires_at.is.null,expires_at.gte.${now}`) // Hides the ad if it is expired!
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
     if (data) setActiveAd(data);
+  }
+
+  // Next upcoming active yard sale, plus how many items are attached to it.
+  async function fetchEvent() {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data } = await supabase
+      .from('yard_sale_events')
+      .select('*')
+      .eq('is_active', true)
+      .gte('event_date', today)
+      .order('event_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!data) {
+      setEvent(null);
+      return;
+    }
+
+    const { count } = await supabase
+      .from('listings')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', data.id);
+
+    setEvent({ ...data, itemCount: count ?? 0 });
+  }
+
+  // "12 ventas · miembro desde 2024", derived from the seller's own listings.
+  async function fetchSellerInfo(phone: string | null) {
+    if (!phone) {
+      setSellerInfo(null);
+      return;
+    }
+    setSellerInfo(null);
+    const { data } = await supabase
+      .from('listings')
+      .select('created_at, is_sold')
+      .eq('seller_phone', phone);
+
+    if (!data) return;
+    const sales = data.filter(d => d.is_sold).length;
+    const years = data.map(d => new Date(d.created_at).getFullYear()).filter(y => !Number.isNaN(y));
+    setSellerInfo({ sales, since: years.length ? Math.min(...years) : null });
   }
 
   // Fetch listings with the 15-day sold filter
@@ -94,9 +177,8 @@ export default function Home() {
     fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
     const cutoffDate = fifteenDaysAgo.toISOString();
 
-    let query = supabase.from('listings')
-      .select('id, created_at, seller_name, title, price, description, location, image_url, image_urls, seller_phone, category, is_sold, bumped_at');
-      
+    let query = supabase.from('listings').select(LISTING_COLUMNS);
+
     if (onlyAvailable) {
       query = query.eq('is_sold', false);
     } else {
@@ -115,14 +197,16 @@ export default function Home() {
     }
 
     query = query.range(from, to);
-      
+
     if (activeCategory !== 'Todos') query = query.eq('category', activeCategory);
-    if (searchQuery.trim() !== '') query = query.ilike('title', `%${searchQuery}%`);
+    if (zone !== ALL_ZONES) query = query.eq('location', zone);
+    if (sellerFilter) query = query.eq('seller_phone', sellerFilter.phone);
+    if (debouncedSearch.trim() !== '') query = query.ilike('title', `%${debouncedSearch}%`);
 
     const { data, error } = await query;
     if (!error && data) {
       if (isFreshSearch || pageNumber === 0) setListings(data);
-      else setListings([...listings, ...data]);
+      else setListings(prev => [...prev, ...data]);
       setHasMore(data.length === ITEMS_PER_PAGE);
     }
     setLoading(false);
@@ -134,27 +218,32 @@ export default function Home() {
     fetchListings(nextPage);
   };
 
+  const openWhatsApp = (phone: string | null | undefined, message: string) => {
+    const number = waNumber(phone);
+    if (!number) return;
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   const handleWhatsAppClick = (item: any) => {
-    if (!item.seller_phone) return;
-    let cleanPhone = item.seller_phone.replace(/\D/g, '');
-    if (cleanPhone.length === 10) cleanPhone = '52' + cleanPhone;
-    const message = encodeURIComponent(`Hola, me interesa tu ${item.title} en Trato 625.`);
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+    openWhatsApp(item.seller_phone, interestMessage(item.title, lang));
   };
 
   const handleShare = async (item: any) => {
     const shareData = { title: item.title, text: `Mira este ${item.title} en Trato 625!`, url: window.location.origin };
     try {
       if (navigator.share) await navigator.share(shareData);
-      else { await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`); alert("¡Enlace copiado!"); }
+      else {
+        await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+        alert(t.alertLinkCopied);
+      }
     } catch (err) { console.error(err); }
   };
 
   const handleMarkSoldBySeller = async () => {
     if (!selectedItem) return;
-    
+
     if (verifyPin.length !== 4) {
-      alert("El PIN debe ser de 4 dígitos.");
+      alert(t.alertPin4);
       return;
     }
 
@@ -169,45 +258,87 @@ export default function Home() {
       .select();
 
     if (error) {
-      alert("Hubo un error de conexión al servidor.");
+      alert(t.alertConnection);
     } else if (!data || data.length === 0) {
-      alert("❌ El PIN es incorrecto. Intenta de nuevo.");
+      alert(t.alertPinWrong);
     } else {
       setSelectedItem({ ...selectedItem, is_sold: true });
       setListings(listings.map(item => item.id === selectedItem.id ? { ...item, is_sold: true } : item));
       setShowSoldPrompt(false);
       setVerifyPin('');
-      alert("¡Felicidades por tu venta! El artículo ha sido marcado como vendido. / Item marked as sold!");
+      alert(t.alertSoldOk);
     }
-    
+
     setSoldLoading(false);
   };
 
   const handleBoostRequest = () => {
     if (!selectedItem) return;
-    const message = encodeURIComponent(`Hola administrador, quiero darle un Boost (subir al inicio) a mi artículo: "${selectedItem.title}".`);
-    window.open(`https://wa.me/526251191400?text=${message}`, '_blank');
+    openWhatsApp(ADMIN_WHATSAPP, boostMessage(selectedItem.title, lang));
   };
+
+  const closeDetail = () => {
+    setSelectedItem(null);
+    setShowSoldPrompt(false);
+    setVerifyPin('');
+    setShowFullscreen(false);
+    setSellerInfo(null);
+  };
+
+  const openEventPage = async () => {
+    if (!event) return;
+    setShowEventPage(true);
+    const { data } = await supabase
+      .from('listings')
+      .select('id, title, price, image_url, image_urls, is_sold')
+      .eq('event_id', event.id)
+      .order('created_at', { ascending: false });
+    setEventItems(data || []);
+  };
+
+  const showSellerListings = () => {
+    if (!selectedItem?.seller_phone) return;
+    setSellerFilter({ phone: selectedItem.seller_phone, name: selectedItem.seller_name || '' });
+    setActiveTab('feed');
+    closeDetail();
+    window.scrollTo({ top: 0 });
+  };
+
+  // Weekday + day for the rotated yellow date chip.
+  const eventDate = (() => {
+    if (!event?.event_date) return { weekday: t.sat, day: '' };
+    const d = new Date(`${event.event_date}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return { weekday: t.sat, day: '' };
+    const weekday = d
+      .toLocaleDateString(lang === 'es' ? 'es-MX' : 'en-US', { weekday: 'short' })
+      .replace(/\./g, '')
+      .toUpperCase();
+    return { weekday, day: String(d.getDate()) };
+  })();
+
+  const eventHours = [event?.start_time, event?.end_time].map(fmtTime).filter(Boolean).join('–');
 
   const renderFullscreenGallery = () => {
     if (!showFullscreen || !selectedItem) return null;
-    const images = selectedItem.image_urls || [selectedItem.image_url];
+    const images = selectedItem.image_urls?.length ? selectedItem.image_urls : [selectedItem.image_url];
 
     return (
-      <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+      <div className="fixed inset-0 z-[100] flex flex-col bg-ink">
         <div className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 z-50">
-          <button onClick={() => setShowFullscreen(false)} className="bg-white/20 hover:bg-white/30 text-white rounded-full py-2 px-4 backdrop-blur-md font-bold text-sm flex items-center gap-2 transition-all">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            Cerrar
+          <button
+            onClick={() => setShowFullscreen(false)}
+            className="rounded-full border-2 border-ink bg-card px-4 py-2 text-sm font-extrabold text-ink shadow-hard-sm"
+          >
+            ✕ {t.close}
           </button>
         </div>
 
-        <div className="flex-1 w-full flex overflow-x-auto snap-x snap-mandatory hide-scrollbar">
+        <div className="hide-scrollbar flex w-full flex-1 snap-x snap-mandatory overflow-x-auto">
           {images.map((img: string, i: number) => (
-            <div key={i} className="w-full h-full shrink-0 snap-center flex flex-col items-center justify-center p-2 relative">
-              <img src={img} className={`max-w-full max-h-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`full-${i}`} />
+            <div key={i} className="relative flex h-full w-full shrink-0 snap-center flex-col items-center justify-center p-2">
+              <img src={img} className={`max-h-full max-w-full object-contain ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`full-${i}`} />
               {images.length > 1 && (
-                <div className="absolute bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 bg-black/60 text-white font-bold text-xs px-4 py-1.5 rounded-full backdrop-blur-sm border border-white/10">
+                <div className="absolute bottom-[max(2rem,env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 rounded-full border-2 border-ink bg-yellow px-4 py-1 text-xs font-black text-ink">
                   {i + 1} / {images.length}
                 </div>
               )}
@@ -218,274 +349,543 @@ export default function Home() {
     );
   };
 
-  const renderDetailView = () => {
-    if (!selectedItem) return null;
-    const images = selectedItem.image_urls || [selectedItem.image_url];
-    const formattedPrice = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(selectedItem.price);
+  const renderEventPage = () => {
+    if (!showEventPage || !event) return null;
 
     return (
-      <div className="fixed inset-0 z-50 bg-white overflow-y-auto overflow-x-hidden w-full flex flex-col">
-        <div className="sticky top-0 shrink-0 bg-white/95 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] flex items-center shadow-sm z-10">
-          <button onClick={() => { setSelectedItem(null); setShowSoldPrompt(false); setVerifyPin(''); setShowFullscreen(false); }} className="p-2 -ml-2 bg-gray-100 rounded-full text-slate-700 font-bold flex items-center gap-1">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            Atrás
-          </button>
-        </div>
+      <div className="hide-scrollbar fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-cream">
+        <div className="mx-auto w-full max-w-md">
+          <div className="border-b-2 border-ink bg-green p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+            <button
+              onClick={() => setShowEventPage(false)}
+              className="press rounded-full border-2 border-ink bg-card px-3.5 py-1.5 text-[13px] font-extrabold text-ink shadow-hard-sm active:shadow-hard-xs"
+            >
+              ‹ {t.back}
+            </button>
 
-        <div className="w-full shrink-0 flex overflow-x-auto snap-x snap-mandatory hide-scrollbar bg-slate-900 relative">
-          {images.map((img: string, i: number) => (
-            <div key={i} onClick={() => setShowFullscreen(true)} className="w-full h-[30vh] shrink-0 snap-center flex items-center justify-center p-2 relative cursor-pointer group">
-              <img src={img} className={`max-w-full max-h-full object-contain transition-transform group-active:scale-95 ${selectedItem.is_sold ? 'opacity-50 grayscale' : ''}`} alt={`img-${i}`} />
-              {!selectedItem.is_sold && (
-                <div className="absolute bottom-3 right-3 bg-black/60 text-white p-2 rounded-full backdrop-blur-sm shadow-lg pointer-events-none">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-                </div>
-              )}
-            </div>
-          ))}
-          {selectedItem.is_sold && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-              <span className="bg-red-600/90 text-white font-black text-4xl tracking-widest px-8 py-3 transform -rotate-12 border-4 border-red-800 shadow-2xl">VENDIDO</span>
-            </div>
-          )}
-        </div>
-
-        <div className="p-5 pb-40 w-full flex-grow">
-          <div className="flex justify-between items-start w-full">
-            <h1 className={`text-2xl font-black leading-tight break-words break-all ${selectedItem.is_sold ? 'text-gray-400 line-through' : 'text-slate-900'}`}>{selectedItem.title}</h1>
-          </div>
-          
-          {selectedItem.location && (
-            <p className="text-sm text-gray-500 font-bold mt-1.5 flex items-center gap-1">📍 {selectedItem.location}</p>
-          )}
-
-          <p className={`${selectedItem.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-3xl mt-1.5`}>{formattedPrice}</p>
-
-          <div className="mt-6 border-t border-gray-100 pt-6 w-full">
-            <h3 className="font-bold text-slate-900 mb-2">Detalles / Details</h3>
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words break-all">{selectedItem.description || 'Sin descripción.'}</p>
-          </div>
-
-          {!selectedItem.is_sold && (
-            <div className="mt-8 bg-slate-50 border border-slate-200 rounded-xl p-4 w-full">
-              <h4 className="font-bold text-slate-800 text-sm mb-4">¿Eres el vendedor? / Are you the seller?</h4>
-
-              <div className="mb-5 bg-indigo-50/50 p-3.5 rounded-lg border border-indigo-100">
-                <p className="text-xs text-indigo-800 font-bold mb-2.5">¿Quieres vender más rápido? Sube tu anuncio al inicio.</p>
-                <button onClick={handleBoostRequest} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm px-4 py-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-colors">🚀 Dar un "Boost" ($20 MXN)</button>
+            <div className="mt-3.5 flex items-center gap-3.5">
+              <div className="flex h-16 w-16 shrink-0 rotate-[-3deg] flex-col items-center justify-center rounded-xl border-2 border-ink bg-yellow">
+                <span className="font-display text-xl leading-none text-ink">{eventDate.weekday}</span>
+                <span className="mt-0.5 text-[13px] leading-none font-black text-terracotta-dark">{eventDate.day}</span>
               </div>
-
-              {!showSoldPrompt ? (
-                <button onClick={() => setShowSoldPrompt(true)} className="w-full text-red-600 font-bold text-sm bg-red-50 hover:bg-red-100 px-4 py-3 rounded-lg border border-red-100 transition-colors">Marcar como Vendido</button>
-              ) : (
-                <div className="space-y-3 mt-3 w-full">
-                  <p className="text-xs text-slate-500 font-medium">Ingresa el PIN Secreto de 4 dígitos que creaste para confirmar la venta.</p>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="••••"
-                    value={verifyPin}
-                    onChange={(e) => setVerifyPin(e.target.value.replace(/\D/g, ''))}
-                    className="w-full border-2 border-gray-300 rounded-lg p-3 bg-white focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none text-center tracking-[1em] font-black text-2xl"
-                  />
-                  <div className="flex gap-2 w-full">
-                    <button onClick={handleMarkSoldBySeller} disabled={soldLoading} className="bg-red-600 text-white font-bold px-4 py-3 rounded-lg text-sm flex-1">{soldLoading ? 'Verificando...' : 'Confirmar Venta'}</button>
-                    <button onClick={() => { setShowSoldPrompt(false); setVerifyPin(''); }} className="bg-gray-200 text-gray-700 font-bold px-4 py-3 rounded-lg text-sm">Cancelar</button>
-                  </div>
-                </div>
-              )}
+              <div className="min-w-0">
+                <p className="text-[9px] font-black tracking-[.18em] text-yellow uppercase">★ {t.eventKicker} ★</p>
+                <h2 className="mt-0.5 font-display text-xl leading-[1.1] text-card">{event.family_name}</h2>
+                <p className="mt-1 text-xs font-bold text-green-tint">
+                  📍 {[event.zone, event.address].filter(Boolean).join(', ')}
+                  {eventHours && ` · ${eventHours}`}
+                </p>
+              </div>
             </div>
-          )}
+
+            {event.description && (
+              <p className="mt-3 text-xs leading-[1.5] font-semibold text-green-soft">{event.description}</p>
+            )}
+          </div>
+
+          <div className="p-4">
+            <p className="mb-3 text-[11px] font-black tracking-[.14em] text-terracotta-dark uppercase">
+              {eventItems.length} {t.items} · {t.eventPreview}
+            </p>
+
+            {eventItems.length === 0 ? (
+              <p className="py-8 text-center text-sm font-bold text-muted">{t.noResults}</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {eventItems.map(ei => {
+                  const img = ei.image_urls?.length ? ei.image_urls[0] : ei.image_url;
+                  return (
+                    <div key={ei.id} className="overflow-hidden rounded-xl border-2 border-ink bg-card shadow-hard">
+                      <div className="h-[110px] overflow-hidden border-b-2 border-ink bg-well">
+                        <img src={img} alt={ei.title} loading="lazy" className={`h-full w-full object-cover ${ei.is_sold ? 'opacity-75 grayscale' : ''}`} />
+                      </div>
+                      <div className="p-2.5">
+                        <p className="truncate text-[13px] font-extrabold text-ink">{ei.title}</p>
+                        <p className="mt-[3px] font-display text-sm text-terracotta">{fmtPrice(ei.price)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => openWhatsApp(event.whatsapp || ADMIN_WHATSAPP, eventMessage(event.family_name, lang))}
+              className="press mt-4 w-full rounded-xl border-2 border-ink bg-wa p-3.5 font-display text-[15px] text-card shadow-hard active:shadow-hard-xs"
+            >
+              {t.eventAsk}
+            </button>
+          </div>
         </div>
+      </div>
+    );
+  };
 
-        <div className="fixed bottom-0 shrink-0 w-full bg-white border-t border-gray-200 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] flex gap-3 shadow-[0_-5px_20px_-10px_rgba(0,0,0,0.1)] z-20">
-          {selectedItem.is_sold ? (
-            <div className="flex-[2] bg-gray-200 text-gray-500 py-3.5 rounded-xl font-bold flex flex-col items-center justify-center cursor-not-allowed">
-              <span className="text-sm leading-none">Artículo Vendido</span>
+  const renderDetailView = () => {
+    if (!selectedItem) return null;
+    const images = selectedItem.image_urls?.length ? selectedItem.image_urls : [selectedItem.image_url];
+    const isSold = !!selectedItem.is_sold;
+    const price = Number(selectedItem.price);
+    const drop = isSold ? null : dropPercent(price, selectedItem.old_price);
+
+    const offers = [
+      { amount: fmtPrice(price), label: t.full, color: 'text-green' },
+      { amount: fmtPrice(Math.round(price * 0.9)), label: '-10%', color: 'text-terracotta' },
+      { amount: fmtPrice(Math.round(price * 0.8)), label: '-20%', color: 'text-terracotta' },
+    ];
+
+    return (
+      <div className="hide-scrollbar fixed inset-0 z-50 flex flex-col overflow-y-auto bg-cream">
+        <div className="mx-auto flex w-full max-w-md flex-1 flex-col">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-ink bg-cream px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <button
+              onClick={closeDetail}
+              className="press rounded-full border-2 border-ink bg-card px-3.5 py-1.5 text-[13px] font-extrabold text-ink shadow-hard-sm active:shadow-hard-xs"
+            >
+              ‹ {t.back}
+            </button>
+            {selectedItem.category && (
+              <span className="rounded-full bg-ink px-3 py-1.5 text-[11px] font-extrabold tracking-[.06em] text-cream uppercase">
+                {selectedItem.category}
+              </span>
+            )}
+          </div>
+
+          <div className="hide-scrollbar relative flex w-full snap-x snap-mandatory overflow-x-auto border-b-2 border-ink bg-well">
+            {images.map((img: string, i: number) => (
+              <div key={i} onClick={() => setShowFullscreen(true)} className="relative h-[250px] w-full shrink-0 snap-center cursor-pointer">
+                <img src={img} className={`h-full w-full object-cover ${isSold ? 'opacity-60 grayscale' : ''}`} alt={`img-${i}`} />
+              </div>
+            ))}
+            {images.length > 1 && (
+              <span className="pointer-events-none absolute right-3 bottom-3 z-10 rounded-full border-2 border-ink bg-card px-2.5 py-1 text-[11px] font-black text-ink">
+                1/{images.length}
+              </span>
+            )}
+            {isSold && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-cream/50">
+                <span className="rotate-[-8deg] border-[3px] border-ink bg-terracotta px-7 py-2.5 font-display text-[32px] tracking-[.12em] text-card">
+                  {t.sold}
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="px-[18px] pt-[18px] pb-[150px]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h1 className="font-display text-[22px] leading-[1.15] wrap-break-word text-ink">{selectedItem.title}</h1>
+                <p className="mt-1.5 text-xs font-extrabold tracking-[.05em] text-green uppercase">
+                  📍 {selectedItem.location || 'Cuauhtémoc'} · {timeAgo(selectedItem.bumped_at || selectedItem.created_at, lang)}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className="inline-block rotate-[2deg] rounded-[10px] border-2 border-ink bg-yellow px-3 py-1.5 font-display text-[19px] whitespace-nowrap text-ink">
+                  {fmtPrice(price)}
+                </span>
+                {drop !== null && (
+                  <p className="mt-1.5 text-xs font-bold text-faint line-through">{fmtPrice(selectedItem.old_price)}</p>
+                )}
+              </div>
             </div>
-          ) : (
-            <button onClick={() => handleWhatsAppClick(selectedItem)} className="flex-[2] bg-[#25D366] hover:bg-[#1DA851] text-white py-3.5 rounded-xl font-bold transition-all shadow-md flex items-center justify-center gap-2 text-lg">WhatsApp</button>
-          )}
-          <button onClick={() => handleShare(selectedItem)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 py-3.5 rounded-xl font-bold transition-all flex flex-col items-center justify-center"><span className="text-sm leading-none">Compartir</span></button>
+
+            {/* Seller mini-profile */}
+            <div className="mt-4 flex items-center gap-3 rounded-[14px] border-2 border-ink bg-card p-3.5 shadow-hard">
+              <div className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full border-2 border-ink bg-green font-display text-base text-card">
+                {initials(selectedItem.seller_name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="flex flex-wrap items-center gap-1.5 text-sm font-black text-ink">
+                  {selectedItem.seller_name || '—'}
+                  {selectedItem.is_verified && (
+                    <span className="rounded-full bg-green px-[7px] py-0.5 text-[9px] font-black tracking-[.06em] text-card uppercase">
+                      ✓ {t.verified}
+                    </span>
+                  )}
+                </p>
+                <p className="mt-[3px] text-[11px] font-bold text-muted">
+                  {sellerInfo ? sellerStats(sellerInfo.sales, sellerInfo.since, lang) : '…'}
+                </p>
+              </div>
+              <button
+                onClick={showSellerListings}
+                className="press shrink-0 rounded-[9px] border-2 border-ink bg-cream px-2.5 py-[7px] text-[11px] font-extrabold whitespace-nowrap text-ink"
+              >
+                {t.seeMore}
+              </button>
+            </div>
+
+            <div className="mt-[18px]">
+              <h3 className="mb-1.5 text-[13px] font-black tracking-[.08em] text-ink uppercase">{t.details}</h3>
+              <p className="text-sm leading-[1.6] font-medium wrap-break-word whitespace-pre-wrap text-body-ink">
+                {selectedItem.description || t.noDescription}
+              </p>
+            </div>
+
+            {!isSold && (
+              <>
+                <div className="mt-5">
+                  <h3 className="mb-2 text-[13px] font-black tracking-[.08em] text-ink uppercase">{t.makeOffer}</h3>
+                  <div className="flex gap-2">
+                    {offers.map(o => (
+                      <button
+                        key={o.label}
+                        onClick={() => openWhatsApp(selectedItem.seller_phone, offerMessage(o.amount, selectedItem.title, lang))}
+                        className="press flex flex-1 flex-col items-center gap-0.5 rounded-[11px] border-2 border-ink bg-card px-1.5 py-2.5 shadow-hard-sm active:shadow-none"
+                      >
+                        <span className={`font-display text-sm ${o.color}`}>{o.amount}</span>
+                        <span className="text-[9px] font-extrabold tracking-[.05em] text-muted uppercase">{o.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-center text-[10px] font-semibold text-faint">{t.offerNote}</p>
+                </div>
+
+                <div className="mt-5 rounded-[14px] border-2 border-ink bg-pin p-3.5">
+                  <h4 className="mb-2.5 text-xs font-black tracking-[.08em] text-ink uppercase">{t.sellerQ}</h4>
+                  <button
+                    onClick={handleBoostRequest}
+                    className="mb-2 w-full rounded-[10px] bg-ink p-3 font-display text-[13px] text-yellow"
+                  >
+                    🚀 {t.boost}
+                  </button>
+
+                  {!showSoldPrompt ? (
+                    <button
+                      onClick={() => setShowSoldPrompt(true)}
+                      className="w-full rounded-[10px] border-2 border-terracotta bg-card p-3 text-[13px] font-black text-terracotta"
+                    >
+                      {t.markSold}
+                    </button>
+                  ) : (
+                    <div className="flex flex-col gap-2.5">
+                      <p className="text-[11px] font-semibold text-muted">{t.pinConfirm}</p>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="••••"
+                        value={verifyPin}
+                        onChange={(e) => setVerifyPin(e.target.value.replace(/\D/g, ''))}
+                        className="box-border w-full rounded-[10px] border-2 border-ink bg-card p-3 text-center text-2xl font-black tracking-[1em] text-ink outline-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleMarkSoldBySeller}
+                          disabled={soldLoading}
+                          className="flex-1 rounded-[10px] border-2 border-ink bg-terracotta p-3 text-[13px] font-black text-card disabled:opacity-70"
+                        >
+                          {soldLoading ? t.verifying : t.confirmSale}
+                        </button>
+                        <button
+                          onClick={() => { setShowSoldPrompt(false); setVerifyPin(''); }}
+                          className="rounded-[10px] border-2 border-ink bg-card px-4 py-3 text-[13px] font-black text-ink"
+                        >
+                          {t.cancel}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="sticky bottom-0 z-20 mt-auto flex w-full gap-2.5 border-t-2 border-ink bg-card px-4 pt-3.5 pb-[max(1.375rem,env(safe-area-inset-bottom))]">
+            {isSold ? (
+              <div className="flex flex-[2] items-center justify-center rounded-xl border-2 border-muted-border bg-well p-3.5 text-sm font-black text-faint">
+                {t.itemSold}
+              </div>
+            ) : (
+              <button
+                onClick={() => handleWhatsAppClick(selectedItem)}
+                className="press flex-[2] rounded-xl border-2 border-ink bg-wa p-3.5 font-display text-base text-card shadow-hard active:shadow-hard-xs"
+              >
+                WhatsApp
+              </button>
+            )}
+            <button
+              onClick={() => handleShare(selectedItem)}
+              className="press flex-1 rounded-xl border-2 border-ink bg-card p-3.5 text-[13px] font-black text-ink"
+            >
+              {t.share}
+            </button>
+          </div>
         </div>
       </div>
     );
   };
 
   const renderGuidelinesView = () => (
-    <div className="p-4 max-w-md mx-auto space-y-6 bg-white rounded-xl shadow-sm border border-gray-100 my-4 text-slate-800">
-      <div className="text-center border-b border-gray-100 pb-4">
-        <h2 className="text-2xl font-black text-slate-900">Reglas de la Comunidad</h2>
-        <p className="text-sm text-slate-500 font-bold">Community Guidelines</p>
+    <div className="flex flex-col gap-3">
+      <div className="py-2 text-center">
+        <h2 className="font-display text-[22px] text-ink">{t.rulesTitle}</h2>
+        <p className="mt-1 text-[11px] font-extrabold tracking-[.16em] text-green uppercase">{t.rulesSub}</p>
       </div>
 
-      <div className="space-y-6">
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>1.</span> Solo Comercio Local
-          </h3>
-          <p className="text-sm font-medium mt-1">Trato 625 es estrictamente para artículos en Cuauhtémoc y sus alrededores. Si no estás en la zona local, tu publicación será eliminada.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Local items only. Trato 625 is for Cuauhtémoc and surrounding areas. Non-local listings will be deleted.</p>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>2.</span> Artículos Prohibidos
-          </h3>
-          <p className="text-sm font-medium mt-1">Cero tolerancia a la venta de artículos ilegales, armas de fuego, drogas, o contenido explícito. Publicar esto resultará en un bloqueo permanente.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Zero tolerance for illegal items, firearms, drugs, or explicit content. Violators will be permanently banned.</p>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>3.</span> Respeto Mutuo
-          </h3>
-          <p className="text-sm font-medium mt-1">Sé honesto con las descripciones de tus artículos y respetuoso al contactar a otros usuarios. Evita el spam.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Be honest with item descriptions and respectful when messaging others. No spamming.</p>
-        </div>
-
-        <div>
-          <h3 className="font-bold text-lg text-blue-600 flex items-center gap-2">
-            <span>4.</span> Marca Tus Ventas
-          </h3>
-          <p className="text-sm font-medium mt-1">Es tu responsabilidad mantener limpio el mercado. Cuando vendas tu artículo, usa tu <span className="font-bold">PIN Secreto</span> para marcarlo como "VENDIDO" para que la gente deje de contactarte.</p>
-          <p className="text-xs text-slate-400 mt-1 italic">Keep the market clean. When your item sells, use your <span className="font-bold">Secret PIN</span> to mark it as "SOLD".</p>
-        </div>
-      </div>
-
-      <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-8">
-        <h3 className="font-black text-lg text-slate-900 mb-1">📲 Instalar la App / Install App</h3>
-        <p className="text-sm text-slate-600 mb-4 font-medium">Agrega Trato 625 a tu pantalla de inicio para acceso rápido. / Add Trato 625 to your home screen for quick access.</p>
-
-        <div className="space-y-4">
+      {RULES[lang].map(rule => (
+        <div key={rule.num} className="flex items-start gap-3.5 rounded-[14px] border-2 border-ink bg-card px-4 py-3.5 shadow-hard">
+          <span className="flex h-[34px] w-[34px] shrink-0 rotate-[-3deg] items-center justify-center rounded-[9px] border-2 border-ink bg-yellow font-display text-base text-ink">
+            {rule.num}
+          </span>
           <div>
-            <p className="text-sm font-bold text-slate-800">🍎 iPhone (Safari)</p>
-            <p className="text-xs text-slate-600 mt-0.5">Toca el botón de compartir (cuadro con flecha) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla de inicio"</span>.</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the share button (square with arrow) and select <span className="font-bold">"Add to Home Screen"</span>.</p>
-          </div>
-
-          <div>
-            <p className="text-sm font-bold text-slate-800">🤖 Android (Chrome)</p>
-            <p className="text-xs text-slate-600 mt-0.5">Toca el letrero de "Instalar aplicación" abajo, o abre el menú (3 puntos) y selecciona <span className="font-bold text-blue-600">"Agregar a la pantalla principal"</span>.</p>
-            <p className="text-[10px] text-slate-400 mt-0.5 italic">Tap the "Install App" banner, or open the menu (3 dots) and select <span className="font-bold">"Add to Home screen"</span>.</p>
+            <h3 className="text-[15px] font-black tracking-[.03em] text-terracotta uppercase">{rule.title}</h3>
+            <p className="mt-1 text-[13px] leading-[1.45] font-semibold text-ink">{rule.body}</p>
           </div>
         </div>
+      ))}
+
+      <div className="rounded-[14px] border-2 border-ink bg-green px-4 py-3.5 shadow-hard">
+        <p className="text-center text-[11px] leading-[1.5] font-extrabold tracking-[.06em] text-card uppercase">
+          {t.adminNote}
+        </p>
       </div>
 
-      <div className="bg-blue-50 p-4 rounded-lg text-center mt-6 border border-blue-100">
-        <p className="text-[11px] font-bold text-blue-800 uppercase tracking-wide">Los administradores se reservan el derecho de eliminar cualquier publicación que viole estas reglas.</p>
+      <div className="mt-2 rounded-[14px] border-2 border-ink bg-card p-4 shadow-hard">
+        <h3 className="font-display text-base text-ink">{t.installTitle}</h3>
+        <p className="mt-1 text-[13px] font-semibold text-muted">{t.installBody}</p>
+
+        <div className="mt-3.5 flex flex-col gap-3">
+          <div>
+            <p className="text-[13px] font-black text-ink">{t.installIphone}</p>
+            <p className="mt-0.5 text-xs leading-[1.45] font-semibold text-muted">{t.installIphoneBody}</p>
+          </div>
+          <div>
+            <p className="text-[13px] font-black text-ink">{t.installAndroid}</p>
+            <p className="mt-0.5 text-xs leading-[1.45] font-semibold text-muted">{t.installAndroidBody}</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 
+  const navButton = (tab: 'feed' | 'post' | 'guidelines', label: string) => {
+    const active = activeTab === tab;
+    return (
+      <button
+        onClick={() => setActiveTab(tab)}
+        className={`flex-1 rounded-[10px] border-2 p-2.5 text-[13px] font-black tracking-[.04em] uppercase ${
+          active ? 'border-ink bg-terracotta text-card' : 'border-muted-border bg-card text-muted'
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
+
   return (
-    <main className="min-h-screen bg-gray-50 pb-32">
+    <main className="min-h-screen bg-cream pb-32">
       {renderDetailView()}
+      {renderEventPage()}
       {renderFullscreenGallery()}
 
-      <header className="bg-white/95 backdrop-blur-md shadow-sm px-4 pb-3 pt-[max(1.5rem,env(safe-area-inset-top))] sticky top-0 z-30 border-b border-gray-100">
-        <div className="text-center mb-4">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Trato 625</h1>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1.5">Cuauhtémoc, Chihuahua MX</p>
+      <header className="sticky top-0 z-30 border-b-2 border-ink bg-cream pt-[max(0.875rem,env(safe-area-inset-top))]">
+        <div className="mx-auto w-full max-w-md">
+          <div className="flex items-center justify-between px-4 pb-2.5">
+            <div>
+              <h1 className="font-display text-[26px] leading-none tracking-[.01em] text-ink">
+                TRATO <span className="text-terracotta">625</span>
+              </h1>
+              <p className="mt-1 text-[9px] font-extrabold tracking-[.22em] text-green uppercase">{t.tagline}</p>
+            </div>
+            <button
+              onClick={toggleLang}
+              className="press rounded-full border-2 border-ink bg-card px-3 py-[5px] text-xs font-extrabold text-ink shadow-hard-sm active:shadow-hard-xs"
+            >
+              {lang === 'es' ? 'ES · en' : 'EN · es'}
+            </button>
+          </div>
+
+          {activeTab === 'feed' && (
+            <>
+              <form onSubmit={handleSearchSubmit} className="flex gap-2 px-4 pb-2.5">
+                <input
+                  type="text"
+                  placeholder={t.search}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="min-w-0 flex-1 rounded-[10px] border-2 border-ink bg-card px-3 py-[9px] text-sm font-semibold text-ink outline-none placeholder:text-faint"
+                />
+                <button
+                  type="button"
+                  onClick={toggleLayout}
+                  className="shrink-0 rounded-[10px] border-2 border-ink bg-ink px-3.5 text-xs font-extrabold text-cream"
+                >
+                  {grid ? t.layoutList : t.layoutGrid}
+                </button>
+              </form>
+
+              <div className="hide-scrollbar flex gap-2 overflow-x-auto px-4 pb-2.5">
+                {CATEGORIES.map(cat => {
+                  const active = activeCategory === cat.val;
+                  return (
+                    <button
+                      key={cat.val}
+                      onClick={() => setActiveCategory(cat.val)}
+                      className={`shrink-0 rounded-full border-2 border-ink px-3.5 py-1.5 text-[13px] font-extrabold whitespace-nowrap ${
+                        active ? 'bg-terracotta text-card shadow-hard-sm' : 'bg-card text-ink'
+                      }`}
+                    >
+                      {lang === 'es' ? cat.es : cat.en}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="hide-scrollbar flex items-center gap-1.5 overflow-x-auto px-4 pb-3">
+                <span className="shrink-0 text-[10px] font-black tracking-[.1em] text-terracotta-dark uppercase">
+                  {t.zone}
+                </span>
+                {[ALL_ZONES, ...ZONES].map(z => {
+                  const active = zone === z;
+                  return (
+                    <button
+                      key={z}
+                      onClick={() => setZone(z)}
+                      className={`shrink-0 rounded-md border-[1.5px] border-dashed px-2.5 py-1 text-[11px] font-bold whitespace-nowrap ${
+                        active ? 'border-ink bg-green text-card' : 'border-green bg-transparent text-green'
+                      }`}
+                    >
+                      {z === ALL_ZONES ? t.allZones : z}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between border-t-2 border-dashed border-muted-border px-4 py-2">
+                <label className="flex cursor-pointer items-center gap-2 text-[11px] font-black tracking-[.04em] text-ink uppercase">
+                  <input
+                    type="checkbox"
+                    checked={onlyAvailable}
+                    onChange={(e) => setOnlyAvailable(e.target.checked)}
+                    className="h-4 w-4 accent-terracotta"
+                  />
+                  {t.onlyAvailable}
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as any)}
+                  className="rounded-md border-2 border-ink bg-card px-2 py-1 text-[11px] font-extrabold text-ink outline-none"
+                >
+                  <option value="recent">{t.sortRecent}</option>
+                  <option value="price_asc">{t.sortPriceAsc}</option>
+                  <option value="price_desc">{t.sortPriceDesc}</option>
+                </select>
+              </div>
+            </>
+          )}
         </div>
-
-        {activeTab === 'feed' && (
-          <form onSubmit={handleSearchSubmit} className="flex gap-2 mb-4">
-            <input type="text" placeholder="Buscar / Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="flex-1 border border-gray-200 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
-            <button type="submit" className="bg-slate-900 text-white font-bold px-5 rounded-lg shadow-sm">Ir</button>
-          </form>
-        )}
-
-        {activeTab === 'feed' && (
-          <div className="flex overflow-x-auto pb-1 gap-2 hide-scrollbar">
-            {CATEGORIES.map(cat => (
-              <button key={cat.val} onClick={() => setActiveCategory(cat.val)} className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-bold transition-all flex items-center gap-1.5 ${activeCategory === cat.val ? 'bg-slate-900 text-white shadow-md' : 'bg-gray-100 text-slate-600 hover:bg-gray-200'}`}>
-                <span>{cat.es}</span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'feed' && (
-          <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-100">
-            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={onlyAvailable} onChange={(e) => setOnlyAvailable(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-slate-900 focus:ring-slate-900 accent-slate-900" />
-              Solo disponibles
-            </label>
-            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value as any)} className="bg-gray-50 border border-gray-200 text-slate-700 text-sm rounded-lg focus:ring-slate-900 focus:border-slate-900 block p-1.5 font-bold outline-none">
-              <option value="recent">Más recientes</option>
-              <option value="price_asc">Menor precio</option>
-              <option value="price_desc">Mayor precio</option>
-            </select>
-          </div>
-        )}
       </header>
 
-      <div className="p-4 max-w-md mx-auto">
-        {activeTab === 'post' && <PostForm />}
+      <div className="mx-auto max-w-md p-4">
+        {activeTab === 'post' && <PostForm lang={lang} />}
         {activeTab === 'guidelines' && renderGuidelinesView()}
+
         {activeTab === 'feed' && (
-          <div className="space-y-4">
-            {loading && listings.length === 0 ? (
-              [...Array(3)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full animate-pulse">
-                  <div className="w-full h-56 bg-gray-200"></div>
-                  <div className="p-4">
-                    <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-                    <div className="flex justify-between items-end">
-                      <div className="h-4 bg-gray-200 rounded w-1/3"></div>
-                      <div className="h-6 bg-gray-200 rounded w-1/4"></div>
-                    </div>
+          <>
+            {sellerFilter && (
+              <button
+                onClick={() => setSellerFilter(null)}
+                className="press mb-4 flex w-full items-center justify-between rounded-xl border-2 border-ink bg-yellow px-3.5 py-2.5 text-[12px] font-black tracking-[.04em] text-ink uppercase shadow-hard-sm active:shadow-hard-xs"
+              >
+                <span className="truncate">👤 {sellerFilter.name}</span>
+                <span className="ml-2 shrink-0">✕</span>
+              </button>
+            )}
+
+            {event && (
+              <div
+                onClick={openEventPage}
+                className="press mb-4 cursor-pointer overflow-hidden rounded-[14px] border-2 border-ink bg-green shadow-hard-lg active:shadow-hard-sm"
+              >
+                <div className="h-2 bg-[repeating-linear-gradient(90deg,#F2C94C_0_20px,#0F6B4E_20px_40px)]" />
+                <div className="flex items-center gap-3.5 px-4 py-3.5">
+                  <div className="flex h-[58px] w-[58px] shrink-0 rotate-[-3deg] flex-col items-center justify-center rounded-xl border-2 border-ink bg-yellow">
+                    <span className="font-display text-[18px] leading-none text-ink">{eventDate.weekday}</span>
+                    <span className="mt-0.5 text-xs leading-none font-black text-terracotta-dark">{eventDate.day}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black tracking-[.18em] text-yellow uppercase">★ {t.eventKicker} ★</p>
+                    <h3 className="mt-0.5 truncate font-display text-[17px] leading-[1.1] text-card">
+                      {event.family_name}{event.zone ? ` — ${event.zone}` : ''}
+                    </h3>
+                    <p className="mt-[3px] text-xs font-bold text-green-tint">
+                      {eventHours && `${eventHours} · `}{event.itemCount} {t.items} · {t.eventCta} →
+                    </p>
                   </div>
                 </div>
-              ))
-            ) : listings.length === 0 && !loading ? (
-              <div className="text-center mt-12"><p className="text-slate-500 font-bold text-lg">No se encontraron artículos.</p></div>
-            ) : (
-              // Ad Injection Logic in the mapping
-              listings.map((item, index) => (
-                <React.Fragment key={item.id}>
-                  
-                  {activeAd && (index + 1) === activeAd.position && (
-                    <div onClick={() => window.open(activeAd.link_url, '_blank')} className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl overflow-hidden mb-4 shadow-sm relative cursor-pointer hover:shadow-md transition-shadow group">
-                      <div className="absolute top-0 right-0 bg-amber-400 text-amber-900 text-[10px] font-black px-3 py-1.5 rounded-bl-lg uppercase tracking-wider z-10 shadow-sm">
-                        Patrocinador
-                      </div>
-                      
-                      {activeAd.image_url && (
-                        <div className="w-full h-40 bg-white border-b border-amber-200 flex items-center justify-center overflow-hidden">
-                          <img src={activeAd.image_url} alt="Sponsor" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        </div>
-                      )}
-                      
-                      <div className="p-4">
-                        <h3 className="font-black text-lg text-slate-900 leading-tight">{activeAd.title}</h3>
-                        <p className="text-sm font-medium text-slate-600 mt-1">{activeAd.description}</p>
-                        <div className="mt-3 inline-block bg-white text-blue-600 border border-blue-200 font-bold text-xs px-4 py-2 rounded-lg shadow-sm">
-                          Ver Oferta →
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              </div>
+            )}
 
-                  <ListingCard item={item} onClick={() => setSelectedItem(item)} />
-                </React.Fragment>
-              ))
+            {loading && listings.length === 0 ? (
+              <div className={`grid gap-3.5 ${grid ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {[...Array(grid ? 4 : 3)].map((_, i) => (
+                  <div key={i} className="animate-pulse overflow-hidden rounded-[14px] border-2 border-ink bg-card shadow-hard">
+                    <div className={`w-full border-b-2 border-ink bg-well ${grid ? 'h-[120px]' : 'h-[200px]'}`} />
+                    <div className="p-3">
+                      <div className="mb-2 h-4 w-3/4 rounded bg-well" />
+                      <div className="h-3 w-1/3 rounded bg-well" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : listings.length === 0 && !loading ? (
+              <div className="mt-10 rounded-[14px] border-2 border-dashed border-muted-border bg-card px-4 py-10 text-center">
+                <p className="font-display text-[17px] text-ink">{t.noResults}</p>
+                <p className="mt-1.5 text-[13px] font-semibold text-muted">{t.noResultsHint}</p>
+              </div>
+            ) : (
+              <div className={`grid gap-3.5 ${grid ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {listings.map((item, index) => (
+                  <React.Fragment key={item.id}>
+                    {activeAd && (index + 1) === activeAd.position && (
+                      <div
+                        onClick={() => window.open(activeAd.link_url, '_blank')}
+                        className={`press relative cursor-pointer overflow-hidden rounded-[14px] border-2 border-ink bg-card shadow-hard active:shadow-hard-xs ${grid ? 'col-span-2' : ''}`}
+                      >
+                        <span className="absolute top-2.5 right-2.5 z-10 rotate-[3deg] rounded-md border-2 border-ink bg-yellow px-2 py-1 text-[10px] font-black tracking-[.08em] text-ink uppercase">
+                          {t.sponsor}
+                        </span>
+
+                        {activeAd.image_url && (
+                          <div className="h-40 w-full overflow-hidden border-b-2 border-ink bg-well">
+                            <img src={activeAd.image_url} alt="Sponsor" className="h-full w-full object-cover" />
+                          </div>
+                        )}
+
+                        <div className="p-3.5">
+                          <h3 className="font-display text-[17px] leading-tight text-ink">{activeAd.title}</h3>
+                          <p className="mt-1 text-[13px] font-semibold text-muted">{activeAd.description}</p>
+                          <span className="mt-2.5 inline-block rounded-[9px] border-2 border-ink bg-cream px-3.5 py-1.5 text-xs font-extrabold text-terracotta">
+                            {t.sponsorCta}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <ListingCard item={item} lang={lang} layout={layout} onClick={() => setSelectedItem(item)} />
+                  </React.Fragment>
+                ))}
+              </div>
             )}
-            
+
             {hasMore && listings.length > 0 && (
-              <button onClick={loadMore} disabled={loading} className="w-full bg-white border border-gray-200 text-blue-600 py-3.5 rounded-xl mt-4 transition-all shadow-sm"><span className="font-bold text-base">{loading ? 'Cargando...' : 'Cargar más'}</span></button>
+              <button
+                onClick={loadMore}
+                disabled={loading}
+                className="press mt-4 w-full rounded-xl border-2 border-ink bg-card p-3.5 text-sm font-black text-ink shadow-hard active:shadow-hard-xs"
+              >
+                {loading ? t.loading : t.loadMore}
+              </button>
             )}
-          </div>
+          </>
         )}
       </div>
 
-      <nav className="fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] max-w-md left-1/2 -translate-x-1/2 z-20 shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
-        <button onClick={() => setActiveTab('feed')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'feed' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}><span className="font-black text-sm">Mercado</span></button>
-        <button onClick={() => setActiveTab('post')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'post' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}><span className="font-black text-sm">Vender</span></button>
-        <button onClick={() => setActiveTab('guidelines')} className={`flex-1 py-2 rounded-xl transition-all flex flex-col items-center justify-center ${activeTab === 'guidelines' ? 'text-blue-600 bg-blue-50/50' : 'text-slate-400'}`}><span className="font-black text-sm">Reglas</span></button>
+      <nav className="fixed bottom-0 left-1/2 z-20 flex w-full max-w-md -translate-x-1/2 justify-around gap-2 border-t-2 border-ink bg-card px-3 pt-2.5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        {navButton('feed', t.navMarket)}
+        {navButton('post', t.navSell)}
+        {navButton('guidelines', t.navRules)}
       </nav>
     </main>
   );

@@ -1,26 +1,72 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* --- Mercado Popular design tokens --- */
+@theme {
+  /* Surfaces */
+  --color-cream: #FAF3EA;
+  --color-card: #FFFDF8;
+  --color-well: #EFE5D6;
+
+  /* Ink — every border and most text */
+  --color-ink: #2A1A12;
+  --color-body-ink: #4A3A2C;
+
+  /* Terracotta — primary accent, active states, SOLD stamp, publish CTA */
+  --color-terracotta: #C8451B;
+  --color-terracotta-dark: #A33512;
+
+  /* Green — zones, seller/verified, event banner, meta text */
+  --color-green: #0F6B4E;
+  --color-green-tint: #BFE3D4;
+  --color-green-soft: #DFF0E8;
+
+  /* Yellow — price stickers, date chip, PIN panel */
+  --color-yellow: #F2C94C;
+  --color-pin: #FDF3D7;
+
+  /* Muted */
+  --color-muted-border: #D8C8B2;
+  --color-muted: #7A6A55;
+  --color-faint: #A99680;
+
+  --color-wa: #25D366;
+
+  /* Type */
+  --font-body: var(--font-archivo), Arial, Helvetica, sans-serif;
+  --font-display: var(--font-archivo-black), var(--font-archivo), Arial, sans-serif;
+
+  /* Signature shadow: hard offset, no blur */
+  --shadow-hard-xs: 1px 1px 0 #2A1A12;
+  --shadow-hard-sm: 2px 2px 0 #2A1A12;
+  --shadow-hard: 3px 3px 0 #2A1A12;
+  --shadow-hard-lg: 4px 4px 0 #2A1A12;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@utility hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Cards and buttons press into the page: shift down-right, shadow collapses. */
+@utility press {
+  transition: transform 0.06s ease-out, box-shadow 0.06s ease-out;
+  &:active {
+    transform: translate(2px, 2px);
+  }
 }
+
+html {
+  background: var(--color-cream);
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  margin: 0;
+}
+
+/* The warm identity is deliberate and single-theme — no dark-mode inversion. */

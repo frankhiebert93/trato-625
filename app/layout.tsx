@@ -1,14 +1,28 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Archivo, Archivo_Black } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next"; // NEW: Speed Insights Import
 
-const inter = Inter({ subsets: ["latin"] });
+// Body face — labels lean on the heavy end (800/900 uppercase).
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  variable: "--font-archivo",
+  display: "swap",
+});
+
+// Display face — logo, prices, stamps, CTAs.
+const archivoBlack = Archivo_Black({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-archivo-black",
+  display: "swap",
+});
 
 // This prevents the annoying iPhone zoom when clicking input boxes
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: "#FAF3EA",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -33,8 +47,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body className={inter.className}>
+    <html lang="es" className={`${archivo.variable} ${archivoBlack.variable}`}>
+      <body>
         {children}
         <Analytics />
         {/* NEW: Speed Insights Tracker */}

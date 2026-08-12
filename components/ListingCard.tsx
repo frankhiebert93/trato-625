@@ -1,57 +1,76 @@
 'use client';
+import { T, fmtPrice, timeAgo, dropPercent, type Lang } from '../lib/i18n';
+import type { Layout } from '../lib/usePrefs';
 
-export default function ListingCard({ item, onClick }: { item: any; onClick: () => void }) {
-    const formattedPrice = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(item.price);
+export default function ListingCard({
+    item,
+    onClick,
+    lang,
+    layout,
+}: {
+    item: any;
+    onClick: () => void;
+    lang: Lang;
+    layout: Layout;
+}) {
+    const t = T[lang];
+    const grid = layout === 'grid';
 
-    const images = item.image_urls || [item.image_url];
-    const photoCount = images.length;
+    const images = item.image_urls?.length ? item.image_urls : [item.image_url];
+    const drop = item.is_sold ? null : dropPercent(Number(item.price), item.old_price);
 
     return (
-        <div onClick={onClick} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full cursor-pointer active:scale-[0.98] transition-transform relative">
-            <div className="w-full h-56 bg-gray-200 relative overflow-hidden">
-                <img src={images[0]} alt={item.title} className={`w-full h-full object-cover ${item.is_sold ? 'grayscale opacity-80' : ''}`} loading="lazy" />
+        <div
+            onClick={onClick}
+            className="press relative flex w-full cursor-pointer flex-col overflow-hidden rounded-[14px] border-2 border-ink bg-card shadow-hard active:shadow-hard-xs"
+        >
+            <div
+                className={`relative w-full overflow-hidden border-b-2 border-ink bg-well ${grid ? 'h-[120px]' : 'h-[200px]'}`}
+            >
+                <img
+                    src={images[0]}
+                    alt={item.title}
+                    loading="lazy"
+                    className={`h-full w-full object-cover ${item.is_sold ? 'opacity-75 grayscale' : ''}`}
+                />
+
+                {drop !== null && (
+                    <span className="absolute top-2.5 left-2.5 z-10 rotate-[-4deg] rounded-lg border-2 border-ink bg-terracotta px-[9px] py-1 font-display text-[11px] whitespace-nowrap text-card">
+                        ↓ {t.dropPrefix} {drop}%{lang === 'es' ? '!' : ''}
+                    </span>
+                )}
 
                 {item.is_sold && (
-                    <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center pointer-events-none">
-                        <div className="bg-red-600 text-white px-8 py-2 transform -rotate-12 border-4 border-red-800 shadow-2xl flex flex-col items-center justify-center">
-                            <span className="font-black text-3xl tracking-widest leading-none">VENDIDO</span>
-                            <span className="text-[10px] font-bold text-red-200 uppercase tracking-widest leading-none mt-1">Sold</span>
-                        </div>
+                    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-cream/55">
+                        <span className="rotate-[-8deg] border-[3px] border-ink bg-terracotta px-5 py-1.5 font-display text-[22px] tracking-[.12em] text-card">
+                            {t.sold}
+                        </span>
                     </div>
-                )}
-
-                {photoCount > 1 && !item.is_sold && (
-                    <span className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-[11px] font-bold px-2.5 py-1 rounded-md shadow-sm flex items-center gap-1 z-10">
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                        1/{photoCount}
-                    </span>
-                )}
-
-                {item.category && !item.is_sold && (
-                    <span className="absolute top-3 right-3 bg-slate-900/80 backdrop-blur-sm text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-sm z-10">
-                        {item.category}
-                    </span>
                 )}
             </div>
 
-            <div className={`p-4 ${item.is_sold ? 'opacity-60 bg-gray-50' : ''}`}>
-                <div className="flex justify-between items-start">
-                    <h3 className={`font-bold text-lg truncate pr-2 ${item.is_sold ? 'text-gray-500 line-through' : 'text-slate-900'}`}>
-                        {item.title}
-                    </h3>
-                </div>
-                <p className={`${item.is_sold ? 'text-gray-400' : 'text-blue-600'} font-black text-xl mt-0.5`}>
-                    {formattedPrice}
-                </p>
+            <div className="relative p-3">
+                <span
+                    className={`absolute -top-4 right-2.5 z-[5] rotate-[2deg] rounded-lg border-2 border-ink bg-yellow px-2.5 py-1 font-display whitespace-nowrap text-ink ${grid ? 'text-xs' : 'text-[15px]'}`}
+                >
+                    {fmtPrice(item.price)}
+                </span>
 
-                <div className="mt-2 text-gray-400 flex flex-col">
-                    <p className="text-[12px] font-bold leading-tight">
-                        {item.is_sold ? 'Ver artículo vendido' : 'Toca para ver detalles →'}
+                <h3
+                    className={`mt-1.5 line-clamp-2 leading-[1.2] font-extrabold text-ink ${grid ? 'text-sm' : 'text-[17px]'}`}
+                >
+                    {item.title}
+                </h3>
+
+                {drop !== null && (
+                    <p className="mt-0.5 text-xs font-bold text-faint line-through">
+                        {fmtPrice(item.old_price)}
                     </p>
-                    <p className="text-[10px] font-medium leading-tight">
-                        {item.is_sold ? 'View sold item' : 'Tap to see details →'}
-                    </p>
-                </div>
+                )}
+
+                <p className="mt-[5px] truncate text-[11px] font-bold tracking-[.04em] text-green uppercase">
+                    📍 {item.location || 'Cuauhtémoc'} · {timeAgo(item.bumped_at || item.created_at, lang)}
+                </p>
             </div>
         </div>
     );
