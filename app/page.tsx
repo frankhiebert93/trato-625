@@ -118,9 +118,12 @@ export default function Home() {
       .or(`expires_at.is.null,expires_at.gte.${now}`) // Hides the ad if it is expired!
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      // maybeSingle: "no ad running" is a normal state, not an error. `single()`
+      // returns PGRST116/406 on zero rows and logs on every page load.
+      .maybeSingle();
 
-    if (data) setActiveAd(data);
+    // Clear explicitly, so an ad deactivated mid-session stops rendering.
+    setActiveAd(data ?? null);
   }
 
   // Next upcoming active yard sale, plus how many items are attached to it.
