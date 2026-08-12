@@ -4,8 +4,8 @@
     "description": "Mercado Local Cuauhtémoc",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#2563eb",
+    "background_color": "#FAF3EA",
+    "theme_color": "#FAF3EA",
     "icons": [
         {
             "src": "/icon-192x192.png",
