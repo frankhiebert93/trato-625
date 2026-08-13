@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { hashPin } from '../lib/pinUtils';
 import Link from 'next/link';
 import { useLang, useLayout, useBlockedSellers } from '../lib/usePrefs';
-import { isNative, nativeShare, tapHaptic } from '../lib/native';
+import { isStoreApp, nativeShare, tapHaptic } from '../lib/native';
 import {
   T,
   RULES,
@@ -72,8 +72,8 @@ export default function Home() {
   const [showFullscreen, setShowFullscreen] = useState(false);
 
   // Read after mount so the server render and first client render agree.
-  const [onNative, setOnNative] = useState(false);
-  useEffect(() => { setOnNative(isNative()); }, []);
+  const [inStoreApp, setInStoreApp] = useState(false);
+  useEffect(() => { setInStoreApp(isStoreApp()); }, []);
 
   // Safety: reporting a listing, and hiding a seller on this device.
   const { blocked, blockSeller, clearBlocked } = useBlockedSellers();
@@ -600,10 +600,11 @@ export default function Home() {
                 <div className="mt-5 rounded-[14px] border-2 border-ink bg-pin p-3.5">
                   <h4 className="mb-2.5 text-xs font-black tracking-[.08em] text-ink uppercase">{t.sellerQ}</h4>
 
-                  {/* Boost is a paid digital feature settled over WhatsApp. App Store
-                      guideline 3.1.1 requires In-App Purchase for that, so it is hidden
-                      inside the native shell and stays available on web. */}
-                  {!onNative && (
+                  {/* Boost is a paid digital feature settled over WhatsApp. Both
+                      stores require their own billing for that — App Store 3.1.1 and
+                      Play's billing policy — so it is hidden in either store build and
+                      stays available on the web. */}
+                  {!inStoreApp && (
                     <button
                       onClick={handleBoostRequest}
                       className="mb-2 w-full rounded-[10px] bg-ink p-3 font-display text-[13px] text-yellow"

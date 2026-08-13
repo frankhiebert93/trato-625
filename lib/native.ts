@@ -25,6 +25,35 @@ export function isNative(): boolean {
   return nativeCached;
 }
 
+const TWA_REFERRER = 'android-app://com.trato625.app';
+
+/**
+ * True inside the Android app shipped through Google Play (a Trusted Web
+ * Activity). Play's billing policy covers paid digital features there, the same
+ * way App Store guideline 3.1.1 does on iOS.
+ *
+ * A TWA marks its launch navigation with `document.referrer`. That value is
+ * lost on a later reload inside the app, so the first positive result is cached
+ * for the session. A PWA installed from the browser is deliberately NOT matched
+ * — it is the website, and no store policy applies to it.
+ */
+export function isPlayApp(): boolean {
+  if (typeof document === 'undefined') return false;
+  const fromReferrer = document.referrer.startsWith(TWA_REFERRER);
+  try {
+    if (sessionStorage.getItem('trato_twa') === '1') return true;
+    if (fromReferrer) sessionStorage.setItem('trato_twa', '1');
+  } catch {
+    // Private mode: fall back to the referrer alone.
+  }
+  return fromReferrer;
+}
+
+/** True in either store-distributed app: the iOS shell or the Play TWA. */
+export function isStoreApp(): boolean {
+  return isNative() || isPlayApp();
+}
+
 /** A short tap. No-op on web. */
 export async function tapHaptic(): Promise<void> {
   if (!isNative()) return;
