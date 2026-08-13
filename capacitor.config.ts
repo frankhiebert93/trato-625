@@ -14,7 +14,11 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   ios: {
-    contentInset: 'always',
+    // 'never' leaves the WebView full-bleed so the page's own
+    // env(safe-area-inset-*) padding positions the sticky header and bottom nav.
+    // With 'always', WKWebView applies its own inset too and the sticky header
+    // stops covering the status bar strip — content scrolls up under the clock.
+    contentInset: 'never',
     backgroundColor: '#FAF3EA',
     limitsNavigationsToAppBoundDomains: true,
   },

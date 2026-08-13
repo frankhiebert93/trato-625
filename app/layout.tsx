@@ -27,6 +27,12 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Required for env(safe-area-inset-*) to resolve to anything but 0. The
+  // sticky header and bottom nav have always padded themselves with those
+  // values; without viewport-fit=cover they were silently getting 0, so the
+  // header collided with the status bar in the iOS shell and in an
+  // installed home-screen PWA.
+  viewportFit: "cover",
 };
 
 const DESCRIPTION = "El mercado local de Cuauhtémoc. Compra y vende cerca de ti.";
