@@ -5,6 +5,7 @@
       "namespace": "android_app",
       "package_name": "com.trato625.app",
       "sha256_cert_fingerprints": [
+        "DF:59:11:14:75:71:66:5D:DD:17:49:5C:37:F2:BE:15:14:15:B7:DC:79:A8:60:33:02:F6:5C:B2:D3:C2:F9:74",
         "REPLACE_WITH_PLAY_APP_SIGNING_SHA256_FROM_PLAY_CONSOLE"
       ]
     }
