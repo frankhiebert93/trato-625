@@ -107,6 +107,7 @@ const es = {
   privacyTitle: 'Aviso de Privacidad',
   privacyLink: 'Leer el Aviso de Privacidad',
   moderationNote: 'Revisamos los reportes y eliminamos publicaciones que violen las reglas.',
+  takePhoto: '📷 Tomar foto',
 
   // alerts
   alertPin4: 'El PIN debe ser de 4 dígitos.',
@@ -231,6 +232,7 @@ const en: Strings = {
   privacyTitle: 'Privacy Policy',
   privacyLink: 'Read the Privacy Policy',
   moderationNote: 'We review reports and remove listings that break the rules.',
+  takePhoto: '📷 Take photo',
 
   // alerts
   alertPin4: 'PIN must be 4 digits.',

@@ -4,6 +4,7 @@ import { compressImage } from '../lib/imageUtils';
 import { supabase } from '../lib/supabase';
 import { hashPin } from '../lib/pinUtils';
 import { T, CATEGORIES, ZONES, type Lang } from '../lib/i18n';
+import { isNative, takeNativePhoto, tapHaptic } from '../lib/native';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
 
@@ -30,6 +31,10 @@ export default function PostForm({ lang }: { lang: Lang }) {
     const [uploading, setUploading] = useState(false);
     const [agreed, setAgreed] = useState(false);
     const [cooldown, setCooldown] = useState(0);
+    const [onNative, setOnNative] = useState(false);
+
+    // Capacitor only exists in the iOS shell; check after mount so SSR matches.
+    useEffect(() => { setOnNative(isNative()); }, []);
 
     useEffect(() => {
         const lastPostTime = localStorage.getItem('lastPostTime');
@@ -63,6 +68,19 @@ export default function PostForm({ lang }: { lang: Lang }) {
                 setFiles(selected);
             }
         }
+    };
+
+    // Native camera capture. The resulting File joins the same compression and
+    // upload path as a file-picker photo, so nothing downstream changes.
+    const handleNativeCamera = async () => {
+        void tapHaptic();
+        const photo = await takeNativePhoto();
+        if (!photo) return;
+        if (files.length >= 5) {
+            alert(t.alertMaxPhotos);
+            return;
+        }
+        setFiles([...files, photo]);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -241,6 +259,16 @@ export default function PostForm({ lang }: { lang: Lang }) {
                 <label className={labelClass}>{t.detailsOptional}</label>
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} rows={2} />
             </div>
+
+            {onNative && (
+                <button
+                    type="button"
+                    onClick={handleNativeCamera}
+                    className="press w-full rounded-xl border-2 border-ink bg-ink p-3.5 font-display text-[15px] text-yellow shadow-hard active:shadow-hard-xs"
+                >
+                    {t.takePhoto}
+                </button>
+            )}
 
             <div className="relative box-border flex h-[120px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink bg-cream">
                 <div className="pointer-events-none px-4 text-center">

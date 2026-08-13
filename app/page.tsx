@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { hashPin } from '../lib/pinUtils';
 import Link from 'next/link';
 import { useLang, useLayout, useBlockedSellers } from '../lib/usePrefs';
+import { nativeShare, tapHaptic } from '../lib/native';
 import {
   T,
   RULES,
@@ -244,7 +245,10 @@ export default function Home() {
 
   const handleShare = async (item: any) => {
     const shareData = { title: item.title, text: `Mira este ${item.title} en Trato 625!`, url: window.location.origin };
+    void tapHaptic();
     try {
+      // Native iOS share sheet first; falls through to the web path off-device.
+      if (await nativeShare(shareData)) return;
       if (navigator.share) await navigator.share(shareData);
       else {
         await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
@@ -578,7 +582,7 @@ export default function Home() {
                     {offers.map(o => (
                       <button
                         key={o.label}
-                        onClick={() => openWhatsApp(selectedItem.seller_phone, offerMessage(o.amount, selectedItem.title, lang))}
+                        onClick={() => { void tapHaptic(); openWhatsApp(selectedItem.seller_phone, offerMessage(o.amount, selectedItem.title, lang)); }}
                         className="press flex flex-1 flex-col items-center gap-0.5 rounded-[11px] border-2 border-ink bg-card px-1.5 py-2.5 shadow-hard-sm active:shadow-none"
                       >
                         <span className={`font-display text-sm ${o.color}`}>{o.amount}</span>
@@ -712,7 +716,7 @@ export default function Home() {
               </div>
             ) : (
               <button
-                onClick={() => handleWhatsAppClick(selectedItem)}
+                onClick={() => { void tapHaptic(); handleWhatsAppClick(selectedItem); }}
                 className="press flex-[2] rounded-xl border-2 border-ink bg-wa p-3.5 font-display text-base text-card shadow-hard active:shadow-hard-xs"
               >
                 WhatsApp
