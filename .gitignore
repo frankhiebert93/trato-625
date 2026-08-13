@@ -42,3 +42,10 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Android TWA signing material — never commit
+*.keystore
+*.jks
+android/KEYSTORE-SECRET.txt
+android/build/
+android/.gradle/
