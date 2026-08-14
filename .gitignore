@@ -49,3 +49,6 @@ next-env.d.ts
 android/KEYSTORE-SECRET.txt
 android/build/
 android/.gradle/
+
+# App Store Connect API private key — never commit
+*.p8
