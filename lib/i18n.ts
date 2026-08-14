@@ -262,12 +262,14 @@ export const RULES: Record<Lang, { num: string; title: string; body: string }[]>
     { num: '2', title: 'Artículos prohibidos', body: 'Cero tolerancia a artículos ilegales, armas de fuego, drogas o contenido explícito. Bloqueo permanente.' },
     { num: '3', title: 'Respeto mutuo', body: 'Sé honesto con las descripciones y respetuoso al contactar. Evita el spam.' },
     { num: '4', title: 'Marca tus ventas', body: 'Cuando vendas, usa tu PIN Secreto para marcar "VENDIDO" y que dejen de contactarte.' },
+    { num: '5', title: 'Tus fotos son tuyas', body: 'Las fotos y textos que publicas siguen siendo tuyos. Al publicar nos das permiso para mostrarlos en Trato 625 mientras tu anuncio esté activo. No los vendemos ni los damos a nadie.' },
   ],
   en: [
     { num: '1', title: 'Local trade only', body: 'Trato 625 is strictly for items in Cuauhtémoc and surrounding areas. Non-local listings get removed.' },
     { num: '2', title: 'Prohibited items', body: 'Zero tolerance for illegal items, firearms, drugs, or explicit content. Permanent ban.' },
     { num: '3', title: 'Mutual respect', body: 'Be honest with descriptions and respectful when contacting. No spam.' },
     { num: '4', title: 'Mark your sales', body: 'When your item sells, use your Secret PIN to mark it "SOLD" so people stop contacting you.' },
+    { num: '5', title: 'Your photos are yours', body: 'The photos and text you post remain yours. By posting you give us permission to show them in Trato 625 while your listing is active. We never sell them or pass them on.' },
   ],
 };
 

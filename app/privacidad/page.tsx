@@ -23,6 +23,7 @@ const ES: Section[] = [
       'Tu número de WhatsApp es visible para cualquier persona que abra tu anuncio. Así funciona el mercado: los compradores te contactan directamente por WhatsApp. Si no quieres que tu número sea público, no publiques.',
       'También son públicos: el título, el precio, la zona, la descripción y las fotos.',
       'Tu nombre y apellido se guardan para uso administrativo y para mostrar quién publica el artículo.',
+      'Las fotos y los textos que publicas siguen siendo tuyos. Al publicar nos das permiso para mostrarlos dentro de Trato 625 (en la app y en el sitio web) mientras tu anuncio esté activo, y para mostrarlos en la vista previa cuando compartes el enlace. No los vendemos ni los damos a nadie más. Si eliminas tu anuncio, dejamos de mostrarlos.',
     ],
   },
   {
@@ -83,6 +84,7 @@ const EN: Section[] = [
       'Your WhatsApp number is visible to anyone who opens your listing. That is how the marketplace works — buyers contact you directly on WhatsApp. If you do not want your number public, do not post.',
       'Also public: title, price, zone, description and photos.',
       'Your first and last name are stored for administrative use and to show who posted the item.',
+      'The photos and text you post remain yours. By posting, you give us permission to display them inside Trato 625 (in the app and on the website) for as long as your listing is active, and in the link preview when you share it. We do not sell them or pass them to anyone else. If your listing is removed, we stop displaying them.',
     ],
   },
   {
