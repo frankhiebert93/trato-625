@@ -46,7 +46,7 @@ create policy app_settings_read on public.app_settings
 revoke all on public.vehicles from anon, authenticated;
 grant select (
   id, seller_id, title, make, model, year, mileage_km, condition, vin,
-  description, location, photos, opening_bid_cents, min_increment_cents,
+  description, location, photos, currency, opening_bid_cents, min_increment_cents,
   current_bid_cents, current_leader_id, bid_count, status, starts_at, ends_at,
   listing_fee_status, winner_id, created_at, published_at, has_reserve, reserve_met
 ) on public.vehicles to anon, authenticated;   -- note: reserve_cents intentionally omitted

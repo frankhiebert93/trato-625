@@ -37,7 +37,7 @@ select lives_ok(
   $$ select listing_fee_cents from public.app_settings where id = 1 $$,
   'authenticated can read app_settings (base grant present, no recursion)');
 select lives_ok(
-  $$ select current_bid_cents from public.vehicles where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' $$,
+  $$ select currency, current_bid_cents from public.vehicles where id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' $$,
   'authenticated can read an active lot (no RLS recursion)');
 reset role;
 
