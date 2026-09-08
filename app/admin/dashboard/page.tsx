@@ -98,7 +98,7 @@ export default function AdminDashboard() {
     if (loading || !user) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-                <p className="text-slate-500 font-bold">Cargando...</p>
+                <p className="text-slate-500 font-bold">Loading...</p>
             </div>
         );
     }
@@ -106,7 +106,7 @@ export default function AdminDashboard() {
     if (profile?.role !== 'admin') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-                <p className="text-slate-500 font-bold">Acceso denegado.</p>
+                <p className="text-slate-500 font-bold">Access denied.</p>
             </div>
         );
     }
@@ -220,7 +220,7 @@ function AdminDashboardContent() {
     async function getAdminToken(): Promise<string> {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
-        if (!token) throw new Error('Tu sesión expiró. Inicia sesión de nuevo.');
+        if (!token) throw new Error('Your session expired. Please sign in again.');
         return token;
     }
 
@@ -231,13 +231,13 @@ function AdminDashboardContent() {
 
         const durationMinutes = Number(draft.duration);
         if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-            setReviewErrors(prev => ({ ...prev, [vehicleId]: 'Duración inválida.' }));
+            setReviewErrors(prev => ({ ...prev, [vehicleId]: 'Invalid duration.' }));
             return;
         }
 
         const openingBidCents = Math.round(parseFloat(draft.openingBid || '0') * 100);
         if (!Number.isFinite(openingBidCents) || openingBidCents < 0) {
-            setReviewErrors(prev => ({ ...prev, [vehicleId]: 'Puja inicial inválida.' }));
+            setReviewErrors(prev => ({ ...prev, [vehicleId]: 'Invalid opening bid.' }));
             return;
         }
 
@@ -249,7 +249,7 @@ function AdminDashboardContent() {
         } else if (draft.reserveAmount.trim() !== '') {
             const parsed = Math.round(parseFloat(draft.reserveAmount) * 100);
             if (!Number.isFinite(parsed) || parsed < openingBidCents) {
-                setReviewErrors(prev => ({ ...prev, [vehicleId]: 'La reserva debe ser mayor o igual a la puja inicial.' }));
+                setReviewErrors(prev => ({ ...prev, [vehicleId]: 'The reserve must be greater than or equal to the opening bid.' }));
                 return;
             }
             reserveCents = parsed;
@@ -259,7 +259,7 @@ function AdminDashboardContent() {
         if (draft.minIncrement.trim() !== '') {
             const parsed = Math.round(parseFloat(draft.minIncrement) * 100);
             if (!Number.isFinite(parsed) || parsed <= 0) {
-                setReviewErrors(prev => ({ ...prev, [vehicleId]: 'El incremento mínimo no es válido.' }));
+                setReviewErrors(prev => ({ ...prev, [vehicleId]: 'The minimum increment is not valid.' }));
                 return;
             }
             minIncrementCents = parsed;
@@ -282,17 +282,17 @@ function AdminDashboardContent() {
                 body: JSON.stringify(body),
             });
             const json = await res.json();
-            if (!res.ok || json.error) throw new Error(json.error ?? 'No se pudo aprobar.');
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Could not approve.');
             await initVehicleAuction();
         } catch (err) {
-            setReviewErrors(prev => ({ ...prev, [vehicleId]: err instanceof Error ? err.message : 'Error inesperado.' }));
+            setReviewErrors(prev => ({ ...prev, [vehicleId]: err instanceof Error ? err.message : 'Unexpected error.' }));
         } finally {
             setReviewBusy(prev => ({ ...prev, [vehicleId]: false }));
         }
     }
 
     async function handleRejectVehicle(vehicleId: string) {
-        if (!window.confirm('¿Rechazar esta publicación? Se liberará la cuota de publicación.')) return;
+        if (!window.confirm('Reject this listing? The listing fee will be released.')) return;
         setReviewErrors(prev => ({ ...prev, [vehicleId]: '' }));
         setReviewBusy(prev => ({ ...prev, [vehicleId]: true }));
         try {
@@ -303,17 +303,17 @@ function AdminDashboardContent() {
                 body: JSON.stringify({ vehicle_id: vehicleId }),
             });
             const json = await res.json();
-            if (!res.ok || json.error) throw new Error(json.error ?? 'No se pudo rechazar.');
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Could not reject.');
             await initVehicleAuction();
         } catch (err) {
-            setReviewErrors(prev => ({ ...prev, [vehicleId]: err instanceof Error ? err.message : 'Error inesperado.' }));
+            setReviewErrors(prev => ({ ...prev, [vehicleId]: err instanceof Error ? err.message : 'Unexpected error.' }));
         } finally {
             setReviewBusy(prev => ({ ...prev, [vehicleId]: false }));
         }
     }
 
     async function handleCancelVehicle(vehicleId: string) {
-        if (!window.confirm('¿Cancelar esta subasta en vivo?')) return;
+        if (!window.confirm('Cancel this live auction?')) return;
         setCancelBusy(prev => ({ ...prev, [vehicleId]: true }));
         try {
             const token = await getAdminToken();
@@ -323,10 +323,10 @@ function AdminDashboardContent() {
                 body: JSON.stringify({ vehicle_id: vehicleId }),
             });
             const json = await res.json();
-            if (!res.ok || json.error) throw new Error(json.error ?? 'No se pudo cancelar.');
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Could not cancel.');
             await initVehicleAuction();
         } catch (err) {
-            alert('Error: ' + (err instanceof Error ? err.message : 'inesperado'));
+            alert('Error: ' + (err instanceof Error ? err.message : 'unexpected'));
         } finally {
             setCancelBusy(prev => ({ ...prev, [vehicleId]: false }));
         }
@@ -346,7 +346,7 @@ function AdminDashboardContent() {
         } catch {
             setSettingsSaving(false);
             setSettingsStatus('error');
-            setSettingsError('Los tramos de incremento no son JSON válido.');
+            setSettingsError('The increment tiers are not valid JSON.');
             return;
         }
         if (
@@ -356,7 +356,7 @@ function AdminDashboardContent() {
         ) {
             setSettingsSaving(false);
             setSettingsStatus('error');
-            setSettingsError('Los tramos deben tener la forma {MXN:[...], USD:[...]} con ambos arreglos no vacíos.');
+            setSettingsError('The tiers must have the form {MXN:[...], USD:[...]} with both arrays non-empty.');
             return;
         }
 
@@ -373,7 +373,7 @@ function AdminDashboardContent() {
         ) {
             setSettingsSaving(false);
             setSettingsStatus('error');
-            setSettingsError('Revisa los valores numéricos.');
+            setSettingsError('Check the numeric values.');
             return;
         }
 
@@ -393,11 +393,11 @@ function AdminDashboardContent() {
                 }),
             });
             const json = await res.json();
-            if (!res.ok || json.error) throw new Error(json.error ?? 'No se pudo guardar.');
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Could not save.');
             setSettingsStatus('saved');
         } catch (err) {
             setSettingsStatus('error');
-            setSettingsError(err instanceof Error ? err.message : 'Error inesperado.');
+            setSettingsError(err instanceof Error ? err.message : 'Unexpected error.');
         } finally {
             setSettingsSaving(false);
         }
@@ -406,7 +406,7 @@ function AdminDashboardContent() {
     async function handleBanToggle(banned: boolean) {
         if (!banProfileId.trim()) {
             setBanStatus('error');
-            setBanMessage('Ingresa el ID de un perfil.');
+            setBanMessage('Enter a profile ID.');
             return;
         }
         setBanBusy(true);
@@ -420,12 +420,12 @@ function AdminDashboardContent() {
                 body: JSON.stringify({ profile_id: banProfileId.trim(), banned }),
             });
             const json = await res.json();
-            if (!res.ok || json.error) throw new Error(json.error ?? 'No se pudo actualizar.');
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Could not update.');
             setBanStatus('ok');
-            setBanMessage(banned ? 'Usuario baneado.' : 'Usuario reactivado.');
+            setBanMessage(banned ? 'User banned.' : 'User reactivated.');
         } catch (err) {
             setBanStatus('error');
-            setBanMessage(err instanceof Error ? err.message : 'Error inesperado.');
+            setBanMessage(err instanceof Error ? err.message : 'Unexpected error.');
         } finally {
             setBanBusy(false);
         }
@@ -451,7 +451,7 @@ function AdminDashboardContent() {
             <div className="max-w-4xl mx-auto">
                 <header className="flex justify-between items-center py-6 border-b border-gray-200 mb-6">
                     <div>
-                        <h1 className="text-3xl font-black text-slate-900">Panel de Control</h1>
+                        <h1 className="text-3xl font-black text-slate-900">Control Panel</h1>
                         <p className="text-sm text-slate-500 font-bold">Admin Dashboard</p>
                     </div>
                     <button onClick={() => { supabase.auth.signOut(); router.push('/admin'); }} className="bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors">
@@ -461,22 +461,22 @@ function AdminDashboardContent() {
 
                 {/* --- SECTION 1: SUBASTAS — COLA DE REVISIÓN --- */}
                 <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2 mt-12">
-                    🚗 Cola de Revisión
+                    🚗 Review Queue
                     {pendingVehicles.length > 0 && (
                         <span className="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded-full">
-                            {pendingVehicles.length} pendiente(s)
+                            {pendingVehicles.length} pending
                         </span>
                     )}
                 </h2>
                 <p className="text-sm text-slate-500 font-medium mb-4">
-                    Publicaciones de vehículos esperando aprobación. El monto de la reserva no se muestra aquí
-                    (nunca se envía al navegador); deja el campo vacío para conservar el que puso el vendedor.
+                    Vehicle listings awaiting approval. The reserve amount is not shown here
+                    (it is never sent to the browser); leave the field blank to keep what the seller set.
                 </p>
                 <div className="space-y-4 mb-12">
                     {vehiclesLoading ? (
-                        <p className="text-center font-bold text-gray-500">Cargando cola...</p>
+                        <p className="text-center font-bold text-gray-500">Loading queue...</p>
                     ) : pendingVehicles.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">No hay publicaciones pendientes.</p>
+                        <p className="text-sm text-gray-500 italic">No pending listings.</p>
                     ) : (
                         pendingVehicles.map((v) => {
                             const draft = reviewDrafts[v.id];
@@ -501,8 +501,8 @@ function AdminDashboardContent() {
                                             </p>
                                             <p className="text-xs text-slate-500">{v.location}{v.vin && ` · VIN ${v.vin}`}</p>
                                             <p className="text-xs text-slate-500 bg-slate-100 inline-block px-2 py-1 rounded mt-1 border border-slate-200">
-                                                <span className="font-bold">Vendedor:</span>{' '}
-                                                {seller ? `${seller.display_name || '(sin nombre)'} · ${seller.phone || ''}` : v.seller_id}
+                                                <span className="font-bold">Seller:</span>{' '}
+                                                {seller ? `${seller.display_name || '(no name)'} · ${seller.phone || ''}` : v.seller_id}
                                             </p>
                                             {v.description && (
                                                 <p className="text-sm text-slate-700 mt-1.5 line-clamp-3">{v.description}</p>
@@ -522,7 +522,7 @@ function AdminDashboardContent() {
                                     <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-4 gap-3">
                                         <div>
                                             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">
-                                                Puja inicial ({v.currency})
+                                                Opening bid ({v.currency})
                                             </label>
                                             <input
                                                 type="number"
@@ -536,14 +536,14 @@ function AdminDashboardContent() {
                                         </div>
                                         <div>
                                             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">
-                                                Incremento mínimo (opcional)
+                                                Minimum increment (optional)
                                             </label>
                                             <input
                                                 type="number"
                                                 inputMode="decimal"
                                                 min={0}
                                                 step="0.01"
-                                                placeholder="Auto (tramos)"
+                                                placeholder="Auto (tiers)"
                                                 value={draft.minIncrement}
                                                 onChange={(e) => updateDraft(v.id, { minIncrement: e.target.value })}
                                                 className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
@@ -551,7 +551,7 @@ function AdminDashboardContent() {
                                         </div>
                                         <div>
                                             <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">
-                                                Duración (minutos)
+                                                Duration (minutes)
                                             </label>
                                             <input
                                                 type="number"
@@ -570,7 +570,7 @@ function AdminDashboardContent() {
                                                     onChange={(e) => updateDraft(v.id, { reserveEnabled: e.target.checked })}
                                                     className="h-4 w-4"
                                                 />
-                                                <span className="text-xs font-bold text-slate-700">Con reserva</span>
+                                                <span className="text-xs font-bold text-slate-700">Has reserve</span>
                                             </label>
                                             {draft.reserveEnabled && (
                                                 <input
@@ -578,7 +578,7 @@ function AdminDashboardContent() {
                                                     inputMode="decimal"
                                                     min={0}
                                                     step="0.01"
-                                                    placeholder="Vacío = sin cambio"
+                                                    placeholder="Blank = no change"
                                                     value={draft.reserveAmount}
                                                     onChange={(e) => updateDraft(v.id, { reserveAmount: e.target.value })}
                                                     className="w-full border rounded-lg p-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 mt-1"
@@ -593,14 +593,14 @@ function AdminDashboardContent() {
                                             disabled={busy}
                                             className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-2.5 rounded-lg text-sm transition-colors disabled:bg-gray-400"
                                         >
-                                            {busy ? 'Procesando...' : 'Aprobar'}
+                                            {busy ? 'Processing...' : 'Approve'}
                                         </button>
                                         <button
                                             onClick={() => handleRejectVehicle(v.id)}
                                             disabled={busy}
                                             className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 font-black py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50"
                                         >
-                                            Rechazar
+                                            Reject
                                         </button>
                                     </div>
                                 </div>
@@ -610,12 +610,12 @@ function AdminDashboardContent() {
                 </div>
 
                 {/* --- SECTION 2: SUBASTAS EN VIVO --- */}
-                <h2 className="text-xl font-black text-slate-900 mb-4">Subastas en Vivo</h2>
+                <h2 className="text-xl font-black text-slate-900 mb-4">Live Auctions</h2>
                 <div className="space-y-3 mb-12">
                     {vehiclesLoading ? (
-                        <p className="text-center font-bold text-gray-500">Cargando...</p>
+                        <p className="text-center font-bold text-gray-500">Loading...</p>
                     ) : liveVehicles.length === 0 ? (
-                        <p className="text-sm text-gray-500 italic">No hay subastas en vivo.</p>
+                        <p className="text-sm text-gray-500 italic">No live auctions.</p>
                     ) : (
                         liveVehicles.map((v) => (
                             <div key={v.id} className="bg-white p-4 rounded-xl shadow-sm border border-green-300 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -623,11 +623,11 @@ function AdminDashboardContent() {
                                     <h3 className="font-bold text-slate-900 leading-tight">{v.title}</h3>
                                     <p className="text-xs text-slate-500">
                                         {[v.make, v.model, v.year].filter(Boolean).join(' ')} ·{' '}
-                                        Puja actual: {v.current_bid_cents != null ? fmtMXN(v.current_bid_cents / 100) : fmtMXN(v.opening_bid_cents / 100)}
-                                        {' '}({v.bid_count} puja(s))
+                                        Current bid: {v.current_bid_cents != null ? fmtMXN(v.current_bid_cents / 100) : fmtMXN(v.opening_bid_cents / 100)}
+                                        {' '}({v.bid_count} bid(s))
                                     </p>
                                     <p className="text-xs text-slate-400">
-                                        Termina: {v.ends_at ? new Date(v.ends_at).toLocaleString('es-MX') : '—'}
+                                        Ends: {v.ends_at ? new Date(v.ends_at).toLocaleString('es-MX') : '—'}
                                     </p>
                                 </div>
                                 <button
@@ -635,7 +635,7 @@ function AdminDashboardContent() {
                                     disabled={!!cancelBusy[v.id]}
                                     className="bg-red-50 text-red-600 font-bold px-3 py-2 rounded-lg text-xs shrink-0 disabled:opacity-50"
                                 >
-                                    {cancelBusy[v.id] ? 'Cancelando...' : 'Cancelar'}
+                                    {cancelBusy[v.id] ? 'Cancelling...' : 'Cancel'}
                                 </button>
                             </div>
                         ))
@@ -644,21 +644,21 @@ function AdminDashboardContent() {
 
                 {/* --- SECTION 3: CONFIGURACIÓN DE SUBASTAS --- */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
-                    <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">⚙️ Configuración de Subastas</h2>
+                    <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">⚙️ Auction Settings</h2>
                     <p className="text-sm text-slate-500 font-medium mb-4">
-                        Aplica a publicaciones futuras; no cambia las subastas ya en curso.
+                        Applies to future listings; does not change auctions already underway.
                     </p>
                     <form onSubmit={handleSaveSettings} className="space-y-4">
                         {settingsStatus === 'error' && settingsError && (
                             <p className="text-red-500 text-sm font-bold">{settingsError}</p>
                         )}
                         {settingsStatus === 'saved' && (
-                            <p className="text-green-600 text-sm font-bold">Guardado.</p>
+                            <p className="text-green-600 text-sm font-bold">Saved.</p>
                         )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-bold mb-1">Cuota de publicación (MXN)</label>
+                                <label className="block text-sm font-bold mb-1">Listing fee (MXN)</label>
                                 <input
                                     type="number" inputMode="decimal" min={0} step="0.01"
                                     value={listingFeePesos}
@@ -667,7 +667,7 @@ function AdminDashboardContent() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold mb-1">Duración por defecto (minutos)</label>
+                                <label className="block text-sm font-bold mb-1">Default duration (minutes)</label>
                                 <input
                                     type="number" inputMode="numeric" min={1}
                                     value={defaultDurationMinutes}
@@ -679,7 +679,7 @@ function AdminDashboardContent() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-sm font-bold mb-1">Ventana anti-snipe (segundos)</label>
+                                <label className="block text-sm font-bold mb-1">Anti-snipe window (seconds)</label>
                                 <input
                                     type="number" inputMode="numeric" min={0}
                                     value={antisnipeWindowSeconds}
@@ -688,7 +688,7 @@ function AdminDashboardContent() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold mb-1">Extensión anti-snipe (segundos)</label>
+                                <label className="block text-sm font-bold mb-1">Anti-snipe extension (seconds)</label>
                                 <input
                                     type="number" inputMode="numeric" min={0}
                                     value={antisnipeExtendSeconds}
@@ -699,7 +699,7 @@ function AdminDashboardContent() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold mb-1">Canal de aviso por defecto</label>
+                            <label className="block text-sm font-bold mb-1">Default notification channel</label>
                             <select
                                 value={defaultNotifyChannel}
                                 onChange={(e) => { setDefaultNotifyChannel(e.target.value as 'whatsapp' | 'sms'); setSettingsStatus('idle'); }}
@@ -711,7 +711,7 @@ function AdminDashboardContent() {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-bold mb-1">Términos y condiciones</label>
+                            <label className="block text-sm font-bold mb-1">Terms and conditions</label>
                             <textarea
                                 rows={4}
                                 value={termsText}
@@ -722,7 +722,7 @@ function AdminDashboardContent() {
 
                         <div>
                             <label className="block text-sm font-bold mb-1">
-                                Tramos de incremento — JSON con arreglos MXN y USD
+                                Increment tiers — JSON with MXN and USD arrays
                             </label>
                             <textarea
                                 rows={10}
@@ -737,16 +737,16 @@ function AdminDashboardContent() {
                             disabled={settingsSaving}
                             className="w-full bg-slate-900 text-white font-black py-3 rounded-lg mt-2 hover:bg-slate-800 transition-all disabled:bg-gray-400"
                         >
-                            {settingsSaving ? 'Guardando...' : 'Guardar Configuración'}
+                            {settingsSaving ? 'Saving...' : 'Save Settings'}
                         </button>
                     </form>
                 </div>
 
                 {/* --- SECTION 4: BANEAR USUARIO --- */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-12">
-                    <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">🚫 Banear Usuario</h2>
+                    <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">🚫 Ban User</h2>
                     <p className="text-sm text-slate-500 font-medium mb-4">
-                        Un usuario baneado no puede pujar ni publicar. Pega el ID del perfil (columna <code>id</code> en <code>profiles</code>).
+                        A banned user cannot bid or list vehicles. Paste the profile ID (the <code>id</code> column in <code>profiles</code>).
                     </p>
                     {banStatus === 'error' && banMessage && (
                         <p className="text-red-500 text-sm font-bold mb-3">{banMessage}</p>
@@ -759,7 +759,7 @@ function AdminDashboardContent() {
                             type="text"
                             value={banProfileId}
                             onChange={(e) => { setBanProfileId(e.target.value); setBanStatus('idle'); }}
-                            placeholder="ID del perfil (uuid)"
+                            placeholder="Profile ID (uuid)"
                             className="flex-grow border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                         />
                         <div className="flex gap-2 shrink-0">
@@ -768,14 +768,14 @@ function AdminDashboardContent() {
                                 disabled={banBusy}
                                 className="bg-red-600 hover:bg-red-700 text-white font-black px-4 py-2.5 rounded-lg text-sm transition-colors disabled:bg-gray-400"
                             >
-                                Banear
+                                Ban
                             </button>
                             <button
                                 onClick={() => handleBanToggle(false)}
                                 disabled={banBusy}
                                 className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-black px-4 py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50"
                             >
-                                Desbanear
+                                Unban
                             </button>
                         </div>
                     </div>
