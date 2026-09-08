@@ -9,7 +9,14 @@ export async function POST(request: Request) {
   const body = await request.json();
   const patch: Record<string, unknown> = {};
   if (typeof body.listing_fee_cents === 'number' && body.listing_fee_cents >= 0) patch.listing_fee_cents = body.listing_fee_cents;
-  if (body.increment_tiers && typeof body.increment_tiers === 'object' && body.increment_tiers.MXN && body.increment_tiers.USD) patch.increment_tiers = body.increment_tiers;
+  if (
+    body.increment_tiers && typeof body.increment_tiers === 'object' &&
+    Array.isArray(body.increment_tiers.MXN) && body.increment_tiers.MXN.length > 0 &&
+    Array.isArray(body.increment_tiers.USD) && body.increment_tiers.USD.length > 0 &&
+    [...body.increment_tiers.MXN, ...body.increment_tiers.USD].every(
+      (t: unknown) => t && typeof t === 'object' && typeof (t as { increment_cents?: unknown }).increment_cents === 'number'
+    )
+  ) patch.increment_tiers = body.increment_tiers;
   if (typeof body.default_duration_minutes === 'number' && body.default_duration_minutes > 0) patch.default_duration_minutes = body.default_duration_minutes;
   if (typeof body.antisnipe_window_seconds === 'number' && body.antisnipe_window_seconds >= 0) patch.antisnipe_window_seconds = body.antisnipe_window_seconds;
   if (typeof body.antisnipe_extend_seconds === 'number' && body.antisnipe_extend_seconds >= 0) patch.antisnipe_extend_seconds = body.antisnipe_extend_seconds;
