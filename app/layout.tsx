@@ -35,7 +35,9 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const DESCRIPTION = "El mercado local de Cuauhtémoc. Compra y vende cerca de ti.";
+const TITLE = "Trato 625 — Subastas de vehículos";
+const DESCRIPTION =
+  "Puja en vivo por autos y camionetas en Cuauhtémoc. Subastas con reserva oculta y protección anti-francotirador — mira el cierre en tiempo real.";
 
 // This tells Apple to treat it like a standalone native app
 export const metadata: Metadata = {
@@ -43,7 +45,7 @@ export const metadata: Metadata = {
   // it Next falls back to VERCEL_URL, which is behind Vercel SSO — WhatsApp and
   // Facebook would get a 302 and show no preview image.
   metadataBase: new URL("https://trato625.com"),
-  title: "Trato 625",
+  title: TITLE,
   description: DESCRIPTION,
   manifest: "/manifest.json",
   appleWebApp: {
@@ -54,14 +56,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Trato 625",
-    title: "Trato 625",
+    title: TITLE,
     description: DESCRIPTION,
     url: "/",
     locale: "es_MX",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Trato 625",
+    title: TITLE,
     description: DESCRIPTION,
   },
 };
