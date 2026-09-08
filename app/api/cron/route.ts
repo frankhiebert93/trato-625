@@ -65,45 +65,5 @@ export async function GET(request: Request) {
         }
     }
 
-    // 3. Legacy listings cleanup (yard-sale carryover; Plan 7 removes this block).
-    //    Best-effort: never let a failure here mask the close/notify summary above.
-    try {
-        const fifteenDaysAgo = new Date();
-        fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-        const cutoffDate = fifteenDaysAgo.toISOString();
-
-        const { data: oldListings, error: fetchError } = await supabaseAdmin
-            .from('listings')
-            .select('*')
-            .eq('is_sold', true)
-            .lt('created_at', cutoffDate);
-        if (fetchError) throw fetchError;
-
-        if (oldListings && oldListings.length > 0) {
-            const filesToDelete: string[] = [];
-            oldListings.forEach((item) => {
-                const images = item.image_urls || (item.image_url ? [item.image_url] : []);
-                images.forEach((url: string) => {
-                    const fileName = url.split('/').pop();
-                    if (fileName) filesToDelete.push(fileName);
-                });
-            });
-
-            if (filesToDelete.length > 0) {
-                const { error: storageError } = await supabaseAdmin.storage.from('listings').remove(filesToDelete);
-                if (storageError) console.error('Error al borrar imágenes:', storageError);
-            }
-
-            const idsToDelete = oldListings.map((item) => item.id);
-            const { error: dbError } = await supabaseAdmin
-                .from('listings')
-                .delete()
-                .in('id', idsToDelete);
-            if (dbError) throw dbError;
-        }
-    } catch (error) {
-        console.error('Limpieza de listings falló (no bloquea el cron):', error);
-    }
-
     return NextResponse.json({ closed: closed ?? 0, sent });
 }
