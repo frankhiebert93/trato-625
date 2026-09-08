@@ -48,6 +48,8 @@ begin
 end;
 $$;
 revoke all on function public.close_due_auctions() from public;
+grant execute on function public.close_due_auctions() to service_role;
+grant select, update on public.notifications to service_role;
 -- (Invoked by the cron route via the service role; no anon/authenticated grant.)
 
 -- Reveal the counterparty's contact only to the winner/seller of a SOLD lot.

@@ -2,7 +2,7 @@ create extension if not exists pgtap with schema extensions;
 set search_path to extensions, public;
 
 begin;
-select plan(8);
+select plan(10);
 
 -- Seed a seller + two bidders + one unrelated user (FK: profiles.id -> auth.users.id).
 insert into auth.users (id, aud, role) values
@@ -145,6 +145,12 @@ select is(
 select is(
   (select (res->>'ok')::boolean from t_bid2),
   true, 'a valid bid still returns ok=true (04_place_bid sanity)');
+
+select ok(has_function_privilege('service_role', 'public.close_due_auctions()', 'EXECUTE'),
+          'service_role can execute close_due_auctions');
+select ok(has_table_privilege('service_role', 'public.notifications', 'SELECT') and
+          has_table_privilege('service_role', 'public.notifications', 'UPDATE'),
+          'service_role can select+update notifications');
 
 select * from finish();
 rollback;
