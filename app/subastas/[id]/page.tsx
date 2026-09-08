@@ -28,6 +28,7 @@ type Vehicle = {
   ends_at: string | null;
   has_reserve: boolean;
   reserve_met: boolean;
+  event_id: string | null;
 };
 
 type BidHistoryRow = {
@@ -51,7 +52,7 @@ type SettlementContact = {
 const VEHICLE_COLUMNS =
   'id, title, make, model, year, mileage_km, condition, vin, description, location, ' +
   'photos, currency, opening_bid_cents, current_bid_cents, current_leader_id, bid_count, ' +
-  'status, ends_at, has_reserve, reserve_met';
+  'status, ends_at, has_reserve, reserve_met, event_id';
 
 const POLL_MS = 3000;
 
@@ -64,6 +65,16 @@ function fmtCents(cents: number, currency: string): string {
     }).format(cents / 100);
   } catch {
     return `${(cents / 100).toFixed(0)} ${currency}`;
+  }
+}
+
+function fmtDateTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('es-MX', {
+      weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return '—';
   }
 }
 
@@ -158,6 +169,7 @@ export default function VehicleDetailPage() {
   const [vehicle, setVehicle] = useState<Vehicle | null | undefined>(undefined);
   const [history, setHistory] = useState<BidHistoryRow[]>([]);
   const [photoIndex, setPhotoIndex] = useState(0);
+  const [eventInfo, setEventInfo] = useState<{ starts_at: string; viewing_location: string | null } | null>(null);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -233,6 +245,18 @@ export default function VehicleDetailPage() {
     isWatching(id).then((w) => { if (active) setWatching(w); });
     return () => { active = false; };
   }, [id, user]);
+
+  // Load the lot's event (preview state: viewing location + start date).
+  useEffect(() => {
+    const eid = vehicle?.event_id;
+    if (!eid) return;
+    let active = true;
+    supabase.from('auction_events').select('starts_at, viewing_location').eq('id', eid).maybeSingle()
+      .then(({ data }) => {
+        if (active && data) setEventInfo(data as { starts_at: string; viewing_location: string | null });
+      });
+    return () => { active = false; };
+  }, [vehicle?.event_id]);
 
   async function toggleWatch() {
     if (!user || watching === null) return;
@@ -337,6 +361,7 @@ export default function VehicleDetailPage() {
   const hasEnded = vehicle.status !== 'live'
     || (vehicle.ends_at ? new Date(vehicle.ends_at).getTime() <= now : false);
   const isLeader = !!user && vehicle.current_leader_id === user.id;
+  const isScheduled = vehicle.status === 'scheduled';
 
   return (
     <main className="min-h-screen bg-cream pb-16">
@@ -396,9 +421,11 @@ export default function VehicleDetailPage() {
           </div>
           <div className="shrink-0 text-right">
             <p className="text-[9px] font-black tracking-[.12em] text-green uppercase">
-              {hasEnded ? 'Estado' : 'Termina en'}
+              {isScheduled ? 'Subasta' : hasEnded ? 'Estado' : 'Termina en'}
             </p>
-            {hasEnded ? (
+            {isScheduled ? (
+              <span className="font-display text-lg text-ink">Programada</span>
+            ) : hasEnded ? (
               <span className="font-display text-lg text-terracotta">Finalizada</span>
             ) : (
               <Countdown endsAt={vehicle.ends_at} now={now} />
@@ -437,7 +464,17 @@ export default function VehicleDetailPage() {
 
         {/* Bid box */}
         <div className="mt-3.5 rounded-[14px] border-2 border-ink bg-card p-3.5 shadow-hard">
-          {!user ? (
+          {isScheduled ? (
+            <div className="text-center">
+              <p className="mb-1 text-[13px] font-semibold text-muted">Esta subasta aún no abre. Podrás pujar cuando inicie.</p>
+              {eventInfo?.starts_at && (
+                <p className="text-[13px] font-black text-ink">Abre el {fmtDateTime(eventInfo.starts_at)}</p>
+              )}
+              {eventInfo?.viewing_location && (
+                <p className="mt-2 text-[12px] font-semibold text-muted">📍 Puedes verlo en: {eventInfo.viewing_location}</p>
+              )}
+            </div>
+          ) : !user ? (
             <div className="text-center">
               <p className="mb-2 text-[13px] font-semibold text-muted">Inicia sesión para pujar en este vehículo.</p>
               <Link

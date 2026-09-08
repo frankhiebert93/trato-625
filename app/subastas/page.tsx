@@ -1,5 +1,5 @@
 'use client';
-import AuctionFeed from '../../components/AuctionFeed';
+import EventsFeed from '../../components/EventsFeed';
 import BackButton from '../../components/BackButton';
 
 export default function SubastasPage() {
@@ -9,15 +9,15 @@ export default function SubastasPage() {
         <div className="mx-auto w-full max-w-md px-4 pb-3.5">
           <BackButton className="mb-2.5" />
           <h1 className="font-display text-[26px] leading-none tracking-[.01em] text-ink">
-            SUBASTAS <span className="text-terracotta">EN VIVO</span>
+            SUBASTAS <span className="text-terracotta">625</span>
           </h1>
           <p className="mt-1 text-[9px] font-extrabold tracking-[.22em] text-green uppercase">
-            Vehículos a la mejor puja
+            Próximas fechas y en vivo
           </p>
         </div>
       </header>
 
-      <AuctionFeed />
+      <EventsFeed />
     </main>
   );
 }
