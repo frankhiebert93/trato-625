@@ -5,8 +5,8 @@ import { useState } from 'react';
 type Lang = 'es' | 'en';
 type Section = { h: string; body: string[] };
 
-const EFFECTIVE_ES = 'Vigente a partir de: [fecha]';
-const EFFECTIVE_EN = 'Effective: [date]';
+const EFFECTIVE_ES = 'Vigente a partir de: 8 de septiembre de 2026';
+const EFFECTIVE_EN = 'Effective: September 8, 2026';
 
 const SECTIONS_ES: Section[] = [
   {
