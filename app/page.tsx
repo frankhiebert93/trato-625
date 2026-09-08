@@ -28,8 +28,8 @@ export default function Home() {
               Vender
             </Link>
             {user ? (
-              <Link href="/perfil" className={`${navLinkClass} bg-card text-ink`}>
-                Perfil
+              <Link href="/cuenta" className={`${navLinkClass} bg-card text-ink`}>
+                Mi cuenta
               </Link>
             ) : (
               <Link href="/entrar" className={`${navLinkClass} bg-card text-ink`}>
