@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import BackButton from '../../components/BackButton';
 
 export default function AdminLogin() {
     const [email, setEmail] = useState('');
@@ -29,7 +30,11 @@ export default function AdminLogin() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+        <div className="min-h-screen flex flex-col bg-gray-100">
+            <div className="p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+                <BackButton />
+            </div>
+            <div className="flex flex-1 items-center justify-center p-4">
             <form onSubmit={handleLogin} className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
                 <h1 className="text-2xl font-black text-center mb-6 text-slate-900">Admin Login</h1>
 
@@ -67,6 +72,7 @@ export default function AdminLogin() {
                     </button>
                 </div>
             </form>
+            </div>
         </div>
     );
 }

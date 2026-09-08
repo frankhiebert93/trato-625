@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../../lib/useUser';
 import { supabase } from '../../lib/supabase';
 import { compressImage } from '../../lib/imageUtils';
+import BackButton from '../../components/BackButton';
 
 type Currency = 'MXN' | 'USD';
 type FeeInfo = { cents: number; currency: string };
@@ -166,6 +167,9 @@ export default function VenderPage() {
 
     return (
         <div className="min-h-screen bg-gray-100 p-4 py-10">
+            <div className="max-w-2xl mx-auto mb-4">
+                <BackButton />
+            </div>
             <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl mx-auto">
                 <h1 className="text-2xl font-black text-center mb-2 text-slate-900">Publica tu vehículo</h1>
                 <p className="text-sm text-slate-500 text-center mb-6">

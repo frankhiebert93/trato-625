@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { requestOtp, verifyOtp } from '../../lib/auth';
+import BackButton from '../../components/BackButton';
 
 type Phase = 'phone' | 'code';
 
@@ -51,7 +52,11 @@ export default function EntrarPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+        <div className="min-h-screen flex flex-col bg-gray-100">
+            <div className="p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+                <BackButton />
+            </div>
+            <div className="flex flex-1 items-center justify-center p-4">
             <form
                 onSubmit={phase === 'phone' ? handleSendCode : handleVerify}
                 className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md"
@@ -106,6 +111,7 @@ export default function EntrarPage() {
                     </button>
                 </div>
             </form>
+            </div>
         </div>
     );
 }
