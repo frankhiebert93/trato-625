@@ -19,15 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'NOT_APPROVABLE' }, { status: 409 });
   }
 
-  // Duration → end time. Validated BEFORE anything is captured.
-  const { data: settings } = await admin.from('app_settings')
-    .select('default_duration_minutes').eq('id', 1).single();
-  const minutes: number = body.duration_minutes ?? settings!.default_duration_minutes;
-  if (!Number.isFinite(minutes) || minutes <= 0) {
-    return NextResponse.json({ error: 'BAD_DURATION' }, { status: 400 });
-  }
-
-  // Optional admin overrides — also validated BEFORE capture.
+  // Optional admin overrides — validated BEFORE capture.
   if ('opening_bid_cents' in body) {
     if (typeof body.opening_bid_cents !== 'number' || body.opening_bid_cents < 0) {
       return NextResponse.json({ error: 'BAD_OVERRIDE' }, { status: 400 });
@@ -63,14 +55,13 @@ export async function POST(request: Request) {
     }
   }
 
+  // In the event model an approved lot becomes 'scheduled' (part of its event);
+  // its starts_at/ends_at are stamped when the event goes live (_go_live_event),
+  // staggered by lot_number. No per-lot duration here.
   const now = new Date();
-  const endsAt = new Date(now.getTime() + minutes * 60_000);
-
   const patch: Record<string, unknown> = {
     listing_fee_status: 'captured',
-    status: 'live',
-    starts_at: now.toISOString(),
-    ends_at: endsAt.toISOString(),
+    status: 'scheduled',
     published_at: now.toISOString(),
   };
   if (typeof body.opening_bid_cents === 'number') patch.opening_bid_cents = body.opening_bid_cents;
@@ -81,5 +72,5 @@ export async function POST(request: Request) {
     .eq('id', vehicleId).eq('status', 'pending_review'); // idempotent
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 400 });
 
-  return NextResponse.json({ ok: true, ends_at: endsAt.toISOString() });
+  return NextResponse.json({ ok: true, status: 'scheduled' });
 }

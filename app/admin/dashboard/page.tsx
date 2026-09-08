@@ -56,6 +56,17 @@ type VehicleRow = {
 
 type SellerRow = { id: string; display_name: string | null; phone: string | null };
 
+type EventRow = {
+    id: string;
+    name: string;
+    status: string;
+    capacity: number;
+    starts_at: string;
+    intake_cutoff_at: string | null;
+    lot_close_gap_seconds: number;
+    viewing_location: string | null;
+};
+
 type AppSettingsRow = {
     id: number;
     listing_fee_currency: string;
@@ -152,9 +163,22 @@ function AdminDashboardContent() {
     const [banStatus, setBanStatus] = useState<'idle' | 'ok' | 'error'>('idle');
     const [banMessage, setBanMessage] = useState('');
 
+    // --- AUCTION EVENTS (Plan 9) ---
+    const [events, setEvents] = useState<EventRow[]>([]);
+    const [eventsLoading, setEventsLoading] = useState(true);
+    const [evName, setEvName] = useState('');
+    const [evCapacity, setEvCapacity] = useState('');
+    const [evStartsAt, setEvStartsAt] = useState('');
+    const [evCutoff, setEvCutoff] = useState('');
+    const [evGap, setEvGap] = useState('120');
+    const [evLocation, setEvLocation] = useState('');
+    const [evBusy, setEvBusy] = useState(false);
+    const [evError, setEvError] = useState('');
+
     useEffect(() => {
         checkUser();
         initVehicleAuction();
+        loadEvents();
     }, []);
 
     async function checkUser() {
@@ -433,6 +457,71 @@ function AdminDashboardContent() {
         }
     }
 
+    async function loadEvents() {
+        setEventsLoading(true);
+        const { data } = await supabase.from('auction_events')
+            .select('id, name, status, capacity, starts_at, intake_cutoff_at, lot_close_gap_seconds, viewing_location')
+            .order('starts_at', { ascending: true });
+        setEvents((data as EventRow[]) ?? []);
+        setEventsLoading(false);
+    }
+
+    async function createEvent(e: React.FormEvent) {
+        e.preventDefault();
+        setEvError('');
+        const capacity = Number(evCapacity);
+        if (!evName.trim() || !Number.isFinite(capacity) || capacity <= 0 || !evStartsAt) {
+            setEvError('Enter a name, capacity and start date.');
+            return;
+        }
+        setEvBusy(true);
+        try {
+            const token = await getAdminToken();
+            const res = await fetch('/api/admin/events', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                    action: 'create',
+                    name: evName.trim(),
+                    capacity,
+                    starts_at: new Date(evStartsAt).toISOString(),
+                    intake_cutoff_at: evCutoff ? new Date(evCutoff).toISOString() : null,
+                    lot_close_gap_seconds: Number(evGap) || 120,
+                    viewing_location: evLocation.trim() || null,
+                }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Could not create.');
+            setEvName(''); setEvCapacity(''); setEvStartsAt(''); setEvCutoff(''); setEvGap('120'); setEvLocation('');
+            await loadEvents();
+        } catch (err) {
+            setEvError(err instanceof Error ? err.message : 'Unexpected error.');
+        } finally {
+            setEvBusy(false);
+        }
+    }
+
+    async function eventAction(action: string, id: string) {
+        setEvError('');
+        setEvBusy(true);
+        try {
+            const token = await getAdminToken();
+            const res = await fetch('/api/admin/events', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({ action, event_id: id }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Action failed.');
+            await loadEvents();
+            await initVehicleAuction();
+        } catch (err) {
+            setEvError(err instanceof Error ? err.message : 'Unexpected error.');
+        } finally {
+            setEvBusy(false);
+        }
+    }
+
     // Seed the settings form once app_settings first arrives, and never
     // again — same render-phase seed-once pattern as app/perfil/page.tsx
     // (adjusting state while rendering, not in an effect), so a later
@@ -461,6 +550,82 @@ function AdminDashboardContent() {
                         Logout
                     </button>
                 </header>
+
+                {/* --- SECTION 0: AUCTION EVENTS --- */}
+                <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">🗓️ Auction Events</h2>
+                <p className="text-sm text-slate-500 font-medium mb-4">
+                    Create dated sales. Sellers submit into the open <b>intake</b> event; it closes at capacity or its cutoff, then you launch it on its date — lots close one-by-one, staggered by the gap.
+                </p>
+                {evError && <p className="text-red-500 text-sm font-bold mb-3">{evError}</p>}
+
+                <form onSubmit={createEvent} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Event name</label>
+                        <input value={evName} onChange={(e) => setEvName(e.target.value)} className="w-full border rounded-lg p-2 text-sm bg-gray-50" placeholder="Subasta — Sábado 24 Ene" />
+                    </div>
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Capacity (vehicles)</label>
+                        <input type="number" min={1} value={evCapacity} onChange={(e) => setEvCapacity(e.target.value)} className="w-full border rounded-lg p-2 text-sm bg-gray-50" />
+                    </div>
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Bidding start</label>
+                        <input type="datetime-local" value={evStartsAt} onChange={(e) => setEvStartsAt(e.target.value)} className="w-full border rounded-lg p-2 text-sm bg-gray-50" />
+                    </div>
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Intake cutoff (optional)</label>
+                        <input type="datetime-local" value={evCutoff} onChange={(e) => setEvCutoff(e.target.value)} className="w-full border rounded-lg p-2 text-sm bg-gray-50" />
+                    </div>
+                    <div>
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Lot close gap (seconds)</label>
+                        <input type="number" min={1} value={evGap} onChange={(e) => setEvGap(e.target.value)} className="w-full border rounded-lg p-2 text-sm bg-gray-50" />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Viewing location (optional)</label>
+                        <input value={evLocation} onChange={(e) => setEvLocation(e.target.value)} className="w-full border rounded-lg p-2 text-sm bg-gray-50" placeholder="Lote en Av. ... — o contactar al vendedor" />
+                    </div>
+                    <div className="sm:col-span-2">
+                        <button type="submit" disabled={evBusy} className="w-full bg-slate-900 text-white font-black py-2.5 rounded-lg text-sm disabled:bg-gray-400">
+                            {evBusy ? 'Working...' : 'Create event'}
+                        </button>
+                    </div>
+                </form>
+
+                <div className="space-y-3 mb-12">
+                    {eventsLoading ? (
+                        <p className="text-center font-bold text-gray-500">Loading events...</p>
+                    ) : events.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">No events yet.</p>
+                    ) : (
+                        events.map((ev) => (
+                            <div key={ev.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center gap-3">
+                                <div className="flex-grow min-w-0">
+                                    <h3 className="font-bold text-slate-900 leading-tight">
+                                        {ev.name}
+                                        <span className="ml-2 text-xs font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{ev.status}</span>
+                                    </h3>
+                                    <p className="text-xs text-slate-500">
+                                        Cap {ev.capacity} · gap {ev.lot_close_gap_seconds}s · starts {new Date(ev.starts_at).toLocaleString('es-MX')}
+                                        {ev.viewing_location && ` · ${ev.viewing_location}`}
+                                    </p>
+                                </div>
+                                <div className="flex gap-2 shrink-0 flex-wrap">
+                                    {ev.status === 'upcoming' && (
+                                        <button onClick={() => eventAction('open_intake', ev.id)} disabled={evBusy} className="bg-blue-50 text-blue-700 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Open intake</button>
+                                    )}
+                                    {ev.status === 'intake' && (
+                                        <button onClick={() => eventAction('close_intake', ev.id)} disabled={evBusy} className="bg-yellow-50 text-yellow-800 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Close intake</button>
+                                    )}
+                                    {ev.status === 'scheduled' && (
+                                        <button onClick={() => eventAction('launch', ev.id)} disabled={evBusy} className="bg-green-600 text-white font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Launch (go live)</button>
+                                    )}
+                                    {['upcoming', 'intake', 'scheduled'].includes(ev.status) && (
+                                        <button onClick={() => eventAction('cancel', ev.id)} disabled={evBusy} className="bg-red-50 text-red-600 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Cancel</button>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
 
                 {/* --- SECTION 1: SUBASTAS — COLA DE REVISIÓN --- */}
                 <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2 mt-12">
