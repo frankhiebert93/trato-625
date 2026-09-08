@@ -2,7 +2,7 @@ create extension if not exists pgtap with schema extensions;
 set search_path to extensions, public;
 
 begin;
-select plan(6);
+select plan(10);
 
 -- Seed two profiles (ids are arbitrary uuids; FK to auth.users is deferred in
 -- local tests by inserting into auth.users first).
@@ -64,6 +64,42 @@ select is(
   (public.place_bid('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 1050000)->>'bid_count')::int,
   2, 'valid raising bid recorded, bid_count = 2');
 reset role;
+
+-- Anti-snipe: a lot ending in 30s (< 120s window), hidden reserve of $20,000.
+insert into public.vehicles (id, seller_id, title, opening_bid_cents, reserve_cents, status, ends_at)
+values ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        '11111111-1111-1111-1111-111111111111',
+        'Ending Soon', 1000000, 2000000, 'live', now() + interval '30 seconds');
+
+-- Bidder 2 opens at $10,000 (below reserve); the bid lands in the final window.
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+set local role authenticated;
+select is(
+  (public.place_bid('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 1000000)->>'extended')::boolean,
+  true, 'bid in the final window extends the auction');
+reset role;
+
+-- ends_at is now ~120s out (was 30s).
+select ok(
+  (select ends_at from public.vehicles where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
+    > now() + interval '100 seconds',
+  'ends_at extended to ~120s from now');
+
+-- Below the hidden reserve → reserve_met false.
+select is(
+  (select reserve_met from public.vehicles where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+  false, 'reserve not met below the hidden reserve');
+
+-- Bidder 3 clears the reserve at $20,000 → reserve_met true.
+select set_config('request.jwt.claims',
+  '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+set local role authenticated;
+select public.place_bid('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 2000000);
+reset role;
+select is(
+  (select reserve_met from public.vehicles where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
+  true, 'reserve met at/above the hidden reserve');
 
 select * from finish();
 rollback;
