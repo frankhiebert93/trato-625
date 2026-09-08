@@ -262,7 +262,7 @@ enable_confirmations = false
 # Template for sending OTP to users
 template = "Your code is {{ `{{ .Code }}` }}"
 # Controls the minimum amount of time that must pass before sending another sms otp.
-max_frequency = "5s"
+max_frequency = "1s"
 
 # Use pre-defined map of phone number to OTP for testing.
 # Local/dev only: fixed codes for these numbers (no SMS is actually sent).
@@ -288,10 +288,12 @@ max_frequency = "5s"
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
 # Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+# ⚠️ LOCAL DEV ONLY — DO NOT push this block to a linked/remote project.
+# These are DUMMY credentials. Phone login here works ONLY via the fixed codes in
+# [auth.sms.test_otp]; those numbers bypass the provider entirely, so these values
+# are never used to send SMS. Real production SMS (Twilio) is configured in the
+# Supabase dashboard as a later task — replacing this block, not pushing it.
 [auth.sms.twilio]
-# Enabled with dummy local-only credentials so the CLI does not disable phone
-# login; matching numbers in [auth.sms.test_otp] bypass this provider entirely,
-# so these fake values are never actually used to send anything.
 enabled = true
 account_sid = "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 message_service_sid = "MGxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"

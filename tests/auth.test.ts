@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { supabase } from '../lib/supabase';
 import { requestOtp, verifyOtp, getMyProfile, updateMyProfile, signOut } from '../lib/auth';
 
 const PHONE = '+525500000001';
