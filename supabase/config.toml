@@ -254,6 +254,11 @@ otp_expiry = 3600
 # subject = "Your password has been changed"
 # content_path = "./templates/password_changed_notification.html"
 
+# ⚠️ LOCAL DEV ONLY — this whole [auth.sms] section (enable_signup, the lowered
+# max_frequency, and the [auth.sms.twilio] dummy provider below) must NOT be pushed
+# to a linked/remote project. Production SMS + throttling are configured in the
+# Supabase dashboard as a later task. The low max_frequency below is safe here only
+# because [auth.sms.test_otp] sends no real SMS.
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = true
