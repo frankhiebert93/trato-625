@@ -8,6 +8,10 @@ import BackButton from '../../components/BackButton';
 
 type Currency = 'MXN' | 'USD';
 type FeeInfo = { cents: number; currency: string };
+type IntakeEvent = {
+    id: string; name: string; starts_at: string; capacity: number;
+    committed_count: number; intake_cutoff_at: string | null; viewing_location: string | null;
+};
 
 const CONDITIONS = ['Nuevo', 'Seminuevo', 'Usado', 'Para piezas'];
 
@@ -36,6 +40,7 @@ export default function VenderPage() {
     const [error, setError] = useState('');
 
     const [fee, setFee] = useState<FeeInfo | null>(null);
+    const [intake, setIntake] = useState<IntakeEvent | null | undefined>(undefined);
 
     // No session once the first resolve is in: send the visitor to sign in.
     useEffect(() => {
@@ -60,6 +65,17 @@ export default function VenderPage() {
         }
 
         loadFee();
+        return () => { active = false; };
+    }, []);
+
+    // Which event this submission will join (the open intake event, if any).
+    useEffect(() => {
+        let active = true;
+        supabase.rpc('current_intake_event').then(({ data }) => {
+            if (!active) return;
+            const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+            setIntake(row as IntakeEvent | null);
+        });
         return () => { active = false; };
     }, []);
 
@@ -175,6 +191,21 @@ export default function VenderPage() {
                 <p className="text-sm text-slate-500 text-center mb-6">
                     {feeText ? `Cuota de publicación: ${feeText}` : 'Cargando cuota de publicación…'}
                 </p>
+
+                {intake === null && (
+                    <p className="text-center text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">
+                        No hay una subasta abierta para registro ahora mismo. Puedes enviar tu auto y lo asignaremos a la próxima subasta.
+                    </p>
+                )}
+                {intake && (
+                    <div className="text-center text-sm text-slate-700 bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
+                        <p className="font-bold">Tu auto entra a: {intake.name}</p>
+                        <p className="text-xs mt-0.5">
+                            Subasta: {new Date(intake.starts_at).toLocaleString('es-MX')} · Registro {intake.committed_count}/{intake.capacity}
+                            {intake.intake_cutoff_at && ` · cierra ${new Date(intake.intake_cutoff_at).toLocaleString('es-MX')}`}
+                        </p>
+                    </div>
+                )}
 
                 {error && <p className="text-red-500 text-sm font-bold text-center mb-4">{error}</p>}
 
