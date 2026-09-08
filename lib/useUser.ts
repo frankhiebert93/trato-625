@@ -13,14 +13,16 @@ export function useUser(): { user: User | null; profile: Profile | null; loading
     let active = true;
 
     async function resolve(nextUser: User | null) {
-      const nextProfile = nextUser ? await getMyProfile() : null;
       if (!active) return;
       setUser(nextUser);
-      setProfile(nextProfile);
-      setLoading(false);
+      try {
+        setProfile(nextUser ? await getMyProfile() : null);
+      } catch {
+        if (active) setProfile(null);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
-
-    supabase.auth.getUser().then(({ data }) => resolve(data.user));
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       resolve(session?.user ?? null);

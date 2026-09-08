@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '../../lib/useUser';
-import { updateMyProfile, signOut, type Profile } from '../../lib/auth';
+import { updateMyProfile, signOut } from '../../lib/auth';
 
 type SaveStatus = 'idle' | 'saved' | 'error';
 
@@ -23,12 +23,14 @@ export default function PerfilPage() {
         }
     }, [loading, user, router]);
 
-    // Seed the form once the profile arrives. Adjusting state while rendering
-    // (rather than in an effect) avoids an extra commit — see
+    // Seed the form once the profile first arrives, and never again — profile
+    // is a fresh object on every auth refresh (e.g. TOKEN_REFRESHED), and
+    // re-seeding on that would clobber unsaved edits. Adjusting state while
+    // rendering (rather than in an effect) avoids an extra commit — see
     // https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-    const [seededProfile, setSeededProfile] = useState<Profile | null>(null);
-    if (profile && profile !== seededProfile) {
-        setSeededProfile(profile);
+    const [seeded, setSeeded] = useState(false);
+    if (profile && !seeded) {
+        setSeeded(true);
         setDisplayName(profile.display_name ?? '');
         setNotifyChannel(profile.notify_channel);
     }
