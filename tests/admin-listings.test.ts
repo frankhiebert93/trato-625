@@ -65,4 +65,30 @@ describe('admin listing actions', () => {
     expect(lot!.status).toBe('cancelled');
     expect(lot!.listing_fee_status).toBe('released');
   });
+
+  it('bad override is rejected BEFORE capture', async () => {
+    const id = await seedPendingLot(seller.userId);
+    captureMock.mockClear();
+    const callsBefore = captureMock.mock.calls.length;
+    const res = await approve(new Request('http://localhost/api/admin/listings/approve', {
+      method: 'POST', headers: { authorization: `Bearer ${adminUser.accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: id, reserve_cents: 1, opening_bid_cents: 1000000 }),
+    }));
+    expect(res.status).toBe(400);
+    expect(captureMock.mock.calls.length).toBe(callsBefore);
+  });
+
+  it('approve is retry-safe when PI already captured', async () => {
+    const id = await seedPendingLot(seller.userId);
+    captureMock.mockRejectedValueOnce({ code: 'payment_intent_unexpected_state' });
+    const res = await approve(new Request('http://localhost/api/admin/listings/approve', {
+      method: 'POST', headers: { authorization: `Bearer ${adminUser.accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ vehicle_id: id, duration_minutes: 60 }),
+    }));
+    expect(res.status).toBe(200);
+    const { data: lot } = await adminClient().from('vehicles')
+      .select('status, listing_fee_status').eq('id', id).single();
+    expect(lot!.status).toBe('live');
+    expect(lot!.listing_fee_status).toBe('captured');
+  });
 });

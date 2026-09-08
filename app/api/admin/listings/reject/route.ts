@@ -17,10 +17,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'NOT_REJECTABLE' }, { status: 409 });
   }
   if (lot.stripe_payment_intent_id) {
-    await stripe.paymentIntents.cancel(lot.stripe_payment_intent_id);
+    try {
+      await stripe.paymentIntents.cancel(lot.stripe_payment_intent_id);
+    } catch (e: any) {
+      // Tolerate a PI that is already canceled (safe retry); fail loudly otherwise.
+      if (e?.code !== 'payment_intent_unexpected_state') {
+        return NextResponse.json({ error: 'CANCEL_FAILED' }, { status: 502 });
+      }
+    }
   }
-  await admin.from('vehicles')
+  const { error: updErr } = await admin.from('vehicles')
     .update({ listing_fee_status: 'released', status: 'cancelled' })
     .eq('id', vehicle_id).eq('status', 'pending_review');
+  if (updErr) return NextResponse.json({ error: updErr.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

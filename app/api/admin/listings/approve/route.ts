@@ -19,19 +19,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'NOT_APPROVABLE' }, { status: 409 });
   }
 
-  // Capture the authorized listing fee.
-  if (lot.stripe_payment_intent_id) {
-    await stripe.paymentIntents.capture(lot.stripe_payment_intent_id);
-  }
-
-  // Duration → end time (always set ends_at).
+  // Duration → end time. Validated BEFORE anything is captured.
   const { data: settings } = await admin.from('app_settings')
     .select('default_duration_minutes').eq('id', 1).single();
   const minutes: number = body.duration_minutes ?? settings!.default_duration_minutes;
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    return NextResponse.json({ error: 'BAD_DURATION' }, { status: 400 });
+  }
+
+  // Optional admin overrides — also validated BEFORE capture.
+  if ('opening_bid_cents' in body) {
+    if (typeof body.opening_bid_cents !== 'number' || body.opening_bid_cents < 0) {
+      return NextResponse.json({ error: 'BAD_OVERRIDE' }, { status: 400 });
+    }
+  }
+  if ('reserve_cents' in body) {
+    if (body.reserve_cents !== null && (typeof body.reserve_cents !== 'number' || body.reserve_cents < 0)) {
+      return NextResponse.json({ error: 'BAD_OVERRIDE' }, { status: 400 });
+    }
+  }
+  if ('min_increment_cents' in body) {
+    if (body.min_increment_cents !== null && (typeof body.min_increment_cents !== 'number' || body.min_increment_cents <= 0)) {
+      return NextResponse.json({ error: 'BAD_OVERRIDE' }, { status: 400 });
+    }
+  }
+  if (
+    typeof body.opening_bid_cents === 'number' &&
+    typeof body.reserve_cents === 'number' &&
+    body.reserve_cents < body.opening_bid_cents
+  ) {
+    return NextResponse.json({ error: 'BAD_OVERRIDE' }, { status: 400 });
+  }
+
+  // Capture the authorized listing fee. Retry-safe: tolerate a PI that is
+  // already captured (e.g. a retry after the DB update below failed).
+  if (lot.stripe_payment_intent_id) {
+    try {
+      await stripe.paymentIntents.capture(lot.stripe_payment_intent_id);
+    } catch (e: any) {
+      if (e?.code !== 'payment_intent_unexpected_state') {
+        return NextResponse.json({ error: 'CAPTURE_FAILED' }, { status: 502 });
+      }
+    }
+  }
+
   const now = new Date();
   const endsAt = new Date(now.getTime() + minutes * 60_000);
 
-  // Optional admin overrides applied at publish.
   const patch: Record<string, unknown> = {
     listing_fee_status: 'captured',
     status: 'live',
