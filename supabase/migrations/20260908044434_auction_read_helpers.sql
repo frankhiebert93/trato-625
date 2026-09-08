@@ -10,6 +10,11 @@ declare v public.vehicles;
 begin
   select * into v from public.vehicles where id = p_vehicle_id;
   if not found then return null; end if;
+  if not (v.status in ('scheduled','live','sold','unsold')
+          or v.seller_id = auth.uid()
+          or public.is_admin()) then
+    return null;
+  end if;
   if v.current_bid_cents is null then
     return v.opening_bid_cents;
   end if;
@@ -34,26 +39,13 @@ as $$
               else 'Postor' end as bidder_label
   from public.bids b
   join public.profiles p on p.id = b.bidder_id
+  join public.vehicles v on v.id = b.vehicle_id
   where b.vehicle_id = p_vehicle_id
+    and (v.status in ('scheduled','live','sold','unsold')
+         or v.seller_id = auth.uid()
+         or public.is_admin())
   order by b.created_at desc
   limit 50;
 $$;
 revoke all on function public.public_bid_history(uuid) from public;
 grant execute on function public.public_bid_history(uuid) to anon, authenticated;
-
--- Realtime: broadcast row changes on vehicles (RLS still filters what clients see).
--- Guarded: `supabase db reset` replays this against a fresh publication each time,
--- but the guard also makes it safe to re-run against a database where a prior
--- apply already added the table (avoids "relation is already member of publication").
-do $$
-begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime'
-      and schemaname = 'public'
-      and tablename = 'vehicles'
-  ) then
-    alter publication supabase_realtime add table public.vehicles;
-  end if;
-end
-$$;
