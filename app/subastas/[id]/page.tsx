@@ -1,9 +1,10 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { useUser } from '../../../lib/useUser';
+import { waNumber } from '../../../lib/i18n';
 
 type Vehicle = {
   id: string;
@@ -32,6 +33,15 @@ type BidHistoryRow = {
   amount_cents: number;
   created_at: string;
   bidder_label: string;
+};
+
+// `get_settlement_contact` returns a row only to the winner or seller of a
+// sold lot — 'seller' means the viewer won and should contact the seller,
+// 'winner' means the viewer sold and should contact the winner.
+type SettlementContact = {
+  counterparty: 'seller' | 'winner';
+  name: string | null;
+  phone: string | null;
 };
 
 // Columns the detail page needs — the same public set the feed uses, plus
@@ -188,6 +198,27 @@ export default function VehicleDetailPage() {
     return () => { active = false; };
   }, [id, user, vehicle?.current_bid_cents, vehicle?.bid_count]);
   const minBidCents = user ? minBidCentsRaw : null;
+
+  // Settlement contact reveal — only meaningful once the lot is sold, and
+  // only returns a row to the actual winner or seller (RLS-equivalent check
+  // inside the RPC; an uninvolved viewer gets an empty result). Fetched once
+  // per (lot, user) pair rather than on every poll tick.
+  const [contact, setContact] = useState<SettlementContact | null>(null);
+  const contactFetchedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!id || !user || vehicle?.status !== 'sold') return;
+    const key = `${id}:${user.id}`;
+    if (contactFetchedFor.current === key) return;
+    contactFetchedFor.current = key;
+    let active = true;
+    supabase.rpc('get_settlement_contact', { p_vehicle_id: id }).then(({ data, error }) => {
+      if (!active) return;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        setContact(data[0] as SettlementContact);
+      }
+    });
+    return () => { active = false; };
+  }, [id, user, vehicle?.status]);
 
   // Prefill the bid input from the current minimum, but only until the
   // bidder edits it by hand. Adjusting state while rendering (rather than in
@@ -413,6 +444,30 @@ export default function VehicleDetailPage() {
             </form>
           )}
         </div>
+
+        {/* Settlement contact reveal — only rendered when the RPC returned a row */}
+        {contact && (
+          <div className="mt-3.5 rounded-[14px] border-2 border-ink bg-green-tint p-3.5 shadow-hard">
+            <p className="font-display text-[17px] text-ink">
+              {contact.counterparty === 'seller'
+                ? '¡Ganaste! Contacta al vendedor'
+                : 'Se vendió. Contacta al comprador'}
+            </p>
+            {contact.name && (
+              <p className="mt-1 text-[13px] font-bold text-ink">{contact.name}</p>
+            )}
+            {contact.phone && (
+              <a
+                href={`https://wa.me/${waNumber(contact.phone)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="press mt-3 inline-block rounded-lg border-2 border-ink bg-green px-4 py-2.5 text-[13px] font-black text-card shadow-hard-sm uppercase"
+              >
+                Contactar por WhatsApp
+              </a>
+            )}
+          </div>
+        )}
 
         {/* Specs */}
         <div className="mt-3.5 rounded-[14px] border-2 border-ink bg-card p-3.5 shadow-hard">
