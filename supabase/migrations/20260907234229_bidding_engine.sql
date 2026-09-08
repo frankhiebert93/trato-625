@@ -40,6 +40,7 @@ begin
   select * into v_vehicle from public.vehicles where id = p_vehicle_id for update;
   if not found then raise exception 'NOT_FOUND'; end if;
   if v_vehicle.status <> 'live' then raise exception 'NOT_LIVE'; end if;
+  if v_vehicle.ends_at is null then raise exception 'NOT_LIVE'; end if;
   if v_now >= v_vehicle.ends_at then raise exception 'ENDED'; end if;
   if v_vehicle.seller_id = v_uid then raise exception 'SELLER_CANNOT_BID'; end if;
   if v_vehicle.current_leader_id = v_uid then raise exception 'ALREADY_LEADING'; end if;

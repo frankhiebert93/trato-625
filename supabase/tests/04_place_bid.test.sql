@@ -2,7 +2,7 @@ create extension if not exists pgtap with schema extensions;
 set search_path to extensions, public;
 
 begin;
-select plan(10);
+select plan(16);
 
 -- Seed two profiles (ids are arbitrary uuids; FK to auth.users is deferred in
 -- local tests by inserting into auth.users first).
@@ -100,6 +100,45 @@ reset role;
 select is(
   (select reserve_met from public.vehicles where id = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
   true, 'reserve met at/above the hidden reserve');
+
+-- ============ Guard-branch coverage ============
+insert into public.vehicles (id, seller_id, title, opening_bid_cents, currency, status, ends_at)
+values ('a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1','11111111-1111-1111-1111-111111111111','Null Ends',1000000,'MXN','live', null);
+insert into public.vehicles (id, seller_id, title, opening_bid_cents, currency, status, ends_at)
+values ('a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2','11111111-1111-1111-1111-111111111111','Ended',1000000,'MXN','live', now() - interval '1 minute');
+insert into public.vehicles (id, seller_id, title, opening_bid_cents, currency, status, ends_at)
+values ('a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3','11111111-1111-1111-1111-111111111111','Draft',1000000,'MXN','draft', now() + interval '1 hour');
+insert into auth.users (id, aud, role) values ('b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0','authenticated','authenticated');
+insert into public.profiles (id, role, is_banned) values ('b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0','bidder', true);
+
+-- Lifecycle guards, as a normal (non-banned) bidder.
+select set_config('request.jwt.claims',
+  '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+set local role authenticated;
+select throws_like($$ select public.place_bid('a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3', 1000000) $$,
+  '%NOT_LIVE%', 'bidding a draft lot raises NOT_LIVE');
+select throws_like($$ select public.place_bid('a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2', 1000000) $$,
+  '%ENDED%', 'bidding an ended lot raises ENDED');
+select throws_like($$ select public.place_bid('a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1', 1000000) $$,
+  '%NOT_LIVE%', 'live lot with null ends_at raises NOT_LIVE (defensive guard)');
+select throws_like($$ select public.place_bid('99999999-9999-9999-9999-999999999999', 1000000) $$,
+  '%NOT_FOUND%', 'unknown vehicle raises NOT_FOUND');
+reset role;
+
+-- Banned bidder (BANNED fires before lifecycle checks).
+select set_config('request.jwt.claims',
+  '{"sub":"b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0","role":"authenticated"}', true);
+set local role authenticated;
+select throws_like($$ select public.place_bid('a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3', 1000000) $$,
+  '%BANNED%', 'a banned user cannot bid');
+reset role;
+
+-- No user identity → AUTH_REQUIRED.
+select set_config('request.jwt.claims', '{"role":"authenticated"}', true);
+set local role authenticated;
+select throws_like($$ select public.place_bid('a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3', 1000000) $$,
+  '%AUTH_REQUIRED%', 'a request without a user identity raises AUTH_REQUIRED');
+reset role;
 
 select * from finish();
 rollback;
