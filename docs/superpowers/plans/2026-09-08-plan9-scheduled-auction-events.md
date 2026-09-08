@@ -78,13 +78,9 @@ lot_number   int                                         -- running order within
 
 ---
 
-## Viewings (per your model — no booking system)
+## Viewings (per your model — no booking system) — **LOCKED: lot location only**
 
-During `scheduled` (preview), each lot's detail page shows **how to view it**, drawn from:
-- the **event's `viewing_location`** (your physical lot where cars can be brought), and/or
-- a **direct-contact affordance** so the buyer can reach the seller to arrange a look.
-
-Direct seller contact pre-sale is a change from today (contact is revealed only to the winner/seller of a **sold** lot via `get_settlement_contact`). Because the platform takes a flat listing fee and never touches the sale, disintermediation isn't a revenue risk — but exposing a phone publicly is a privacy choice. **Proposed:** a per-lot `viewing_contact_opt_in boolean` (seller chooses at submit); when on, the preview shows a "Contactar para ver" WhatsApp affordance via a `SECURITY DEFINER` `get_viewing_contact(vehicle_id)` RPC (only returns while the lot's event is `scheduled`), else the page just shows the event's lot location. (See Open decisions #1.)
+During `scheduled` (preview), each lot's detail page shows **how to view it** using the **event's `viewing_location`** (your physical lot where cars can be brought) and optional `viewing_notes`. **Seller contact stays private until a sale** (unchanged: `get_settlement_contact` still only reveals winner/seller after a lot is `sold`). No per-lot opt-in, no `get_viewing_contact` RPC — dropped per the locked decision.
 
 ---
 
@@ -104,10 +100,11 @@ Direct seller contact pre-sale is a change from today (contact is revealed only 
 - `create_draft_listing(...)` → **+ set `event_id` = current intake event** (raise `NO_OPEN_INTAKE` if none). Signature grows by nothing else.
 - `open_next_intake()` — flips the earliest `upcoming` event to `intake` when there's none active; called by cron.
 - `close_intake_if_full(event_id)` / a sweep `close_full_or_expired_intakes()` — intake→scheduled on capacity/cutoff; then `open_next_intake()`.
-- `go_live_due_events()` — for each `scheduled` event with `now ≥ starts_at`: stamp its approved lots `live` + `ends_at` from `lot_number`; event → `live`.
+- `go_live_due_events()` — for each `scheduled` event with `now ≥ starts_at` **AND at capacity**: stamp its approved lots `live` + `ends_at` from `lot_number` (via `_go_live_event`); event → `live`. **Under-capacity events do NOT auto-launch** (locked: admin decides) — they stay `scheduled` for the admin to launch (`_go_live_event` via the admin API) or reschedule.
+- `_go_live_event(event_id)` — the stamping helper (assigns any missing `lot_number` in approval order, then sets each lot `live` with `ends_at = starts_at + gap × lot_number`, event → `live`). Called by `go_live_due_events` (auto, full) and by admin manual launch.
 - `close_finished_events()` — event → `closed` once it has no `live` lots left (run after `close_due_auctions`).
-- `get_viewing_contact(vehicle_id)` — (Open decision #1) seller contact during preview, opt-in only.
-- `place_bid` — **unchanged** (per-lot gating already correct). Optional hardening: also assert the lot's event is `live`.
+- `create_draft_listing(...)` — **+ attach `event_id` = current intake event when one exists, else `null`** (non-breaking: keeps `/vender` working during cutover before the first event exists). No per-seller cap (locked).
+- `place_bid` — **unchanged** (per-lot gating already correct).
 
 **RLS:** `auction_events` readable by anon/authenticated for non-`upcoming` rows (public sees intake/scheduled/live/closed); admin sees all and writes (via service role / admin API, mirroring listings). `vehicles` policies unchanged (public sees `scheduled/live/sold/unsold`; that now includes preview lots).
 
@@ -131,15 +128,15 @@ The `vehicles` table has ~no real rows and there are no live events, so this is 
 
 ---
 
-## Open decisions (confirm before Phase A)
+## Decisions (LOCKED)
 
-1. **Pre-sale viewing contact.** Show the seller's WhatsApp during preview (opt-in per lot), or show only your physical **lot location** and keep seller contact private until sale? (Affects `get_viewing_contact` + submit toggle.)
-2. **"One upload per window" meaning.** Is it purely the **time-boxed intake window** (all submissions in the window go to that event — my reading), or also a **per-seller cap** (e.g. one vehicle per event)? Any max lots per seller?
-3. **Cron frequency / infra.** Timed closings + anti-snipe need the cron ≈ every minute. Vercel Hobby crons run at most **daily**; per-minute needs **Vercel Pro** (or an external pinger like a 3rd-party scheduler hitting `/api/cron`). Which route? (This gates Phase B being actually functional in production.)
-4. **Unfilled event at its date.** If an event doesn't reach capacity by `starts_at`, does it still go live with the lots it has, slip to a new date, or merge into the next event?
-5. **Lot ordering.** Auto by submission/approval order, or fully admin-arranged? Any grouping (e.g. by make)?
-6. **Currency.** Keep per-lot USD/MXN as today, or force one currency per event?
-7. **Reserve at close** stays as-is (unsold if reserve unmet) — confirm no change.
+1. **Pre-sale viewing:** **lot location only**; seller contact stays private until a sale. (No opt-in, no `get_viewing_contact`.)
+2. **Intake limit:** the **time/capacity window only** — no per-seller cap; a seller may submit multiple lots into the open event.
+3. **Cron:** **per-minute on Vercel Pro** — Phase B sets `vercel.json` cron to `* * * * *` (project on the user's Pro plan). Confirm the plan at Phase B.
+4. **Unfilled event at its date:** **admin decides** — auto go-live only when the event is at capacity; otherwise it stays `scheduled` and the admin launches it manually or reschedules.
+5. **Lot ordering (default):** approval order (auto-assign next `lot_number` on approve), admin-reorderable. 
+6. **Currency (default):** per-lot USD/MXN as today (no per-event currency lock).
+7. **Reserve at close:** unchanged (unsold if reserve unmet).
 
 ---
 
