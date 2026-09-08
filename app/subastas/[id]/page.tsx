@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
+import BackButton from '../../../components/BackButton';
 import { useUser } from '../../../lib/useUser';
 import { waNumber } from '../../../lib/i18n';
 import { isWatching, addWatch, removeWatch } from '../../../lib/account';
@@ -367,9 +368,7 @@ export default function VehicleDetailPage() {
     <main className="min-h-screen bg-cream pb-16">
       <header className="sticky top-0 z-30 border-b-2 border-ink bg-cream pt-[max(0.875rem,env(safe-area-inset-top))]">
         <div className="mx-auto flex w-full max-w-md items-center justify-between px-4 pb-3.5">
-          <Link href="/subastas" className="text-[13px] font-black text-green uppercase">
-            ← Subastas
-          </Link>
+          <BackButton fallback="/subastas" />
         </div>
       </header>
 
