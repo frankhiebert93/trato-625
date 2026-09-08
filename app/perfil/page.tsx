@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '../../lib/useUser';
 import { updateMyProfile, signOut } from '../../lib/auth';
+import BackButton from '../../components/BackButton';
 
 type SaveStatus = 'idle' | 'saved' | 'error';
 
@@ -83,9 +83,7 @@ export default function PerfilPage() {
         <main className="min-h-screen bg-cream pb-16">
             <header className="sticky top-0 z-30 border-b-2 border-ink bg-cream pt-[max(0.875rem,env(safe-area-inset-top))]">
                 <div className="mx-auto flex w-full max-w-md items-center justify-between px-4 pb-3.5">
-                    <Link href="/cuenta" className="text-[13px] font-black text-green uppercase">
-                        ← Mi cuenta
-                    </Link>
+                    <BackButton fallback="/cuenta" />
                 </div>
             </header>
 
