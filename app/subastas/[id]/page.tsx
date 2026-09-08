@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { useUser } from '../../../lib/useUser';
 import { waNumber } from '../../../lib/i18n';
+import { isWatching, addWatch, removeWatch } from '../../../lib/account';
 
 type Vehicle = {
   id: string;
@@ -220,6 +221,29 @@ export default function VehicleDetailPage() {
     return () => { active = false; };
   }, [id, user, vehicle?.status]);
 
+  // Watch (follow) state — `null` while unknown or signed out.
+  const [watching, setWatching] = useState<boolean | null>(null);
+  const [watchBusy, setWatchBusy] = useState(false);
+  useEffect(() => {
+    // While signed out the render shows the sign-in prompt regardless of this
+    // state, so there is no need to reset it here (keeps the effect side-effect
+    // free until the async check resolves).
+    if (!id || !user) return;
+    let active = true;
+    isWatching(id).then((w) => { if (active) setWatching(w); });
+    return () => { active = false; };
+  }, [id, user]);
+
+  async function toggleWatch() {
+    if (!user || watching === null) return;
+    const next = !watching;
+    setWatchBusy(true);
+    setWatching(next); // optimistic
+    const { error } = next ? await addWatch(id) : await removeWatch(id);
+    if (error) setWatching(!next); // rollback
+    setWatchBusy(false);
+  }
+
   // Prefill the bid input from the current minimum, but only until the
   // bidder edits it by hand. Adjusting state while rendering (rather than in
   // an effect) avoids an extra commit — see
@@ -381,6 +405,29 @@ export default function VehicleDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Follow / watch this auction */}
+        {user ? (
+          watching !== null && (
+            <button
+              type="button"
+              onClick={toggleWatch}
+              disabled={watchBusy}
+              className={`press mt-3 w-full rounded-lg border-2 border-ink px-4 py-2.5 text-[13px] font-black uppercase shadow-hard-sm disabled:opacity-60 ${
+                watching ? 'bg-card text-ink' : 'bg-green text-card'
+              }`}
+            >
+              {watching ? '★ Siguiendo · dejar de seguir' : '☆ Seguir esta subasta'}
+            </button>
+          )
+        ) : (
+          <Link
+            href="/entrar"
+            className="mt-3 block text-center text-[12px] font-semibold text-muted underline"
+          >
+            Inicia sesión para seguir esta subasta
+          </Link>
+        )}
 
         {isLeader && !hasEnded && (
           <p className="mt-3 rounded-lg border-2 border-ink bg-green-tint px-3 py-2 text-center text-[13px] font-black text-green uppercase">
