@@ -11,7 +11,8 @@ insert into auth.users (id, aud, role) values
   ('22222222-2222-2222-2222-222222222222', 'authenticated', 'authenticated');
 insert into public.profiles (id, role, is_banned) values
   ('11111111-1111-1111-1111-111111111111', 'seller', false),
-  ('22222222-2222-2222-2222-222222222222', 'bidder', false);
+  ('22222222-2222-2222-2222-222222222222', 'bidder', false)
+  on conflict (id) do update set role = excluded.role, is_banned = excluded.is_banned;
 
 insert into public.vehicles (id, seller_id, title, opening_bid_cents, status, ends_at)
 values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -53,7 +54,8 @@ reset role;
 insert into auth.users (id, aud, role)
   values ('33333333-3333-3333-3333-333333333333', 'authenticated', 'authenticated');
 insert into public.profiles (id, role) values
-  ('33333333-3333-3333-3333-333333333333', 'bidder');
+  ('33333333-3333-3333-3333-333333333333', 'bidder')
+  on conflict (id) do update set role = excluded.role;
 select set_config('request.jwt.claims',
   '{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
 set local role authenticated;
@@ -109,7 +111,8 @@ values ('a2a2a2a2-a2a2-a2a2-a2a2-a2a2a2a2a2a2','11111111-1111-1111-1111-11111111
 insert into public.vehicles (id, seller_id, title, opening_bid_cents, currency, status, ends_at)
 values ('a3a3a3a3-a3a3-a3a3-a3a3-a3a3a3a3a3a3','11111111-1111-1111-1111-111111111111','Draft',1000000,'MXN','draft', now() + interval '1 hour');
 insert into auth.users (id, aud, role) values ('b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0','authenticated','authenticated');
-insert into public.profiles (id, role, is_banned) values ('b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0','bidder', true);
+insert into public.profiles (id, role, is_banned) values ('b0b0b0b0-b0b0-b0b0-b0b0-b0b0b0b0b0b0','bidder', true)
+  on conflict (id) do update set role = excluded.role, is_banned = excluded.is_banned;
 
 -- Lifecycle guards, as a normal (non-banned) bidder.
 select set_config('request.jwt.claims',

@@ -30,9 +30,6 @@ export async function createTestUser(phone: string) {
   if (error) throw error;
   const userId = data.user!.id;
 
-  const { error: pErr } = await admin.from('profiles').insert({ id: userId });
-  if (pErr) throw pErr;
-
   const anon = createClient(URL, ANON, { auth: { persistSession: false } });
   const { data: session, error: signErr } =
     await anon.auth.signInWithPassword({ email, password });

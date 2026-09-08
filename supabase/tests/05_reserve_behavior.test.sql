@@ -8,7 +8,8 @@ select plan(4);
 insert into auth.users (id, aud, role)
   values ('55555555-5555-5555-5555-555555555555', 'authenticated', 'authenticated');
 insert into public.profiles (id, role)
-  values ('55555555-5555-5555-5555-555555555555', 'seller');
+  values ('55555555-5555-5555-5555-555555555555', 'seller')
+  on conflict (id) do update set role = excluded.role;
 
 -- No-reserve lot → has_reserve false.
 insert into public.vehicles (id, seller_id, title, opening_bid_cents, currency, status)

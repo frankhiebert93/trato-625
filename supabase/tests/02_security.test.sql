@@ -22,10 +22,12 @@ select ok(
 -- Behavioral: authenticated reads must succeed (guards base grants + no RLS recursion).
 insert into auth.users (id, aud, role)
   values ('66666666-6666-6666-6666-666666666666','authenticated','authenticated');
-insert into public.profiles (id, role) values ('66666666-6666-6666-6666-666666666666','bidder');
+insert into public.profiles (id, role) values ('66666666-6666-6666-6666-666666666666','bidder')
+  on conflict (id) do update set role = excluded.role;
 insert into auth.users (id, aud, role)
   values ('77777777-7777-7777-7777-777777777777','authenticated','authenticated');
-insert into public.profiles (id, role) values ('77777777-7777-7777-7777-777777777777','seller');
+insert into public.profiles (id, role) values ('77777777-7777-7777-7777-777777777777','seller')
+  on conflict (id) do update set role = excluded.role;
 insert into public.vehicles (id, seller_id, title, opening_bid_cents, currency, status, ends_at)
 values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee','77777777-7777-7777-7777-777777777777',
         'Active Lot',1000000,'MXN','live', now() + interval '1 hour');

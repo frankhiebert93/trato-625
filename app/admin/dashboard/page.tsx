@@ -1,7 +1,19 @@
 'use client';
+/*
+ * One-time admin promotion (operator action, run once against the project DB —
+ * not app code; the `add-user` skill can also do this):
+ *
+ * The signup trigger sets role = 'bidder' for every new user, including the
+ * email/password admin account, so it must be promoted manually before it can
+ * pass the role guard below:
+ *
+ *   update public.profiles set role = 'admin'
+ *   where id = (select id from auth.users where email = '<admin-email>');
+ */
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
+import { useUser } from '../../../lib/useUser';
 import { ZONES, REPORT_REASONS, fmtPrice, fmtTime, dropPercent } from '../../../lib/i18n';
 
 const EMPTY_EVENT = {
@@ -15,7 +27,43 @@ const EMPTY_EVENT = {
     whatsapp: '',
 };
 
+// Gates the dashboard on profiles.role === 'admin'. Admin sign-in stays
+// email/password (lib/useUser reads the same Supabase session either way);
+// only who is allowed past this guard changes.
 export default function AdminDashboard() {
+    const { user, profile, loading } = useUser();
+    const router = useRouter();
+
+    // No session once the first resolve is in: send the visitor to the admin
+    // login. Mirrors the redirect-in-effect pattern in app/perfil/page.tsx.
+    useEffect(() => {
+        if (!loading && !user) {
+            router.push('/admin');
+        }
+    }, [loading, user, router]);
+
+    if (loading || !user) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+                <p className="text-slate-500 font-bold">Cargando...</p>
+            </div>
+        );
+    }
+
+    if (profile?.role !== 'admin') {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+                <p className="text-slate-500 font-bold">Acceso denegado.</p>
+            </div>
+        );
+    }
+
+    return <AdminDashboardContent />;
+}
+
+// Existing dashboard, unchanged — only reachable once the role guard above
+// confirms profile.role === 'admin'.
+function AdminDashboardContent() {
     const router = useRouter();
 
     // --- LISTINGS STATE ---
