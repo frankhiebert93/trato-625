@@ -6,6 +6,8 @@ export type Profile = {
   display_name: string | null;
   role: 'bidder' | 'seller' | 'admin';
   notify_channel: 'whatsapp' | 'sms';
+  full_name: string | null;
+  city: string | null;
 };
 
 export async function requestOtp(phone: string): Promise<{ error: string | null }> {
@@ -27,7 +29,7 @@ export async function getMyProfile(): Promise<Profile | null> {
   if (!auth.user) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, phone, display_name, role, notify_channel')
+    .select('id, phone, display_name, role, notify_channel, full_name, city')
     .eq('id', auth.user.id)
     .single();
   if (error) return null;
@@ -35,7 +37,12 @@ export async function getMyProfile(): Promise<Profile | null> {
 }
 
 export async function updateMyProfile(
-  fields: { display_name?: string; notify_channel?: 'whatsapp' | 'sms' },
+  fields: {
+    display_name?: string;
+    notify_channel?: 'whatsapp' | 'sms';
+    full_name?: string;
+    city?: string;
+  },
 ): Promise<{ error: string | null }> {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { error: 'not signed in' };
