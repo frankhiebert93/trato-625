@@ -19,11 +19,26 @@ export async function GET(request: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 1. Close every live lot past its end time (decides sold vs unsold and enqueues
-    //    the relevant 'won'/'sold'/'unsold' notification rows).
+    // 1. Event lifecycle sweeps (Plan 9): make sure an intake event is open, close
+    //    any intake event that is full or past its cutoff (rotating to the next),
+    //    and launch scheduled events that have reached their date at capacity.
+    for (const fn of ['open_next_intake', 'close_full_or_expired_intakes', 'go_live_due_events'] as const) {
+        const { error } = await supabaseAdmin.rpc(fn);
+        if (error) {
+            return NextResponse.json({ error: `${fn}: ${error.message}` }, { status: 500 });
+        }
+    }
+
+    // 2. Close every live lot past its end time (decides sold vs unsold and enqueues
+    //    the relevant 'won'/'sold'/'unsold' notification rows), then close any event
+    //    whose lots have all finished.
     const { data: closed, error: closeError } = await supabaseAdmin.rpc('close_due_auctions');
     if (closeError) {
         return NextResponse.json({ error: closeError.message }, { status: 500 });
+    }
+    const { error: eventsClosedError } = await supabaseAdmin.rpc('close_finished_events');
+    if (eventsClosedError) {
+        return NextResponse.json({ error: eventsClosedError.message }, { status: 500 });
     }
 
     // 2. Dispatch pending notifications (outbid/won/sold/unsold), oldest first.
