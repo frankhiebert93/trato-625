@@ -15,6 +15,7 @@ import { supabase } from '../../../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useUser } from '../../../lib/useUser';
 import { fmtPrice } from '../../../lib/i18n';
+import BackButton from '../../../components/BackButton';
 
 // --- Vehicle auction (Plan 4) ---
 type ReviewDraft = {
@@ -105,8 +106,9 @@ export default function AdminDashboard() {
 
     if (profile?.role !== 'admin') {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
+            <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-gray-100 p-4">
                 <p className="text-slate-500 font-bold">Access denied.</p>
+                <BackButton />
             </div>
         );
     }
@@ -449,6 +451,7 @@ function AdminDashboardContent() {
     return (
         <div className="min-h-screen bg-gray-50 p-4 pb-20">
             <div className="max-w-4xl mx-auto">
+                <div className="pt-2 pb-4"><BackButton /></div>
                 <header className="flex justify-between items-center py-6 border-b border-gray-200 mb-6">
                     <div>
                         <h1 className="text-3xl font-black text-slate-900">Control Panel</h1>

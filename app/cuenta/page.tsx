@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '../../lib/useUser';
 import VehicleCard, { fmtCents, type Badge } from '../../components/VehicleCard';
+import BackButton from '../../components/BackButton';
 import {
   fetchMyBidLots,
   fetchMyWonLots,
@@ -144,6 +145,7 @@ export default function CuentaPage() {
     <main className="min-h-screen bg-cream pb-16">
       <header className="sticky top-0 z-30 border-b-2 border-ink bg-cream pt-[max(0.875rem,env(safe-area-inset-top))]">
         <div className="mx-auto w-full max-w-md px-4 pb-3.5">
+          <BackButton className="mb-2.5" />
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h1 className="font-display text-[26px] leading-none tracking-[.01em] text-ink">MI CUENTA</h1>
