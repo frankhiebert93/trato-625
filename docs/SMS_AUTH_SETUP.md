@@ -66,7 +66,8 @@ WhatsApp-enabled Twilio sender / Meta Business approval). Start with SMS; move t
 WhatsApp Verify later if SMS deliverability or cost is a problem.
 
 ## Optional later — notification delivery (not required to launch)
-`lib/notify.ts` is a stub until `NOTIFY_PROVIDER_KEY` is set; then wire a real send
-(Twilio SMS and/or WhatsApp Cloud API) and add the per-item try/catch the review
-flagged. Until then, outbid/won/sold/unsold rows queue in `notifications` unsent — the
-auction still works end to end.
+`lib/notify.ts` sends outbid/won/sold/unsold alerts via Twilio (SMS and/or
+WhatsApp) once Twilio env vars are set; until then it's a logged no-op and those
+rows queue in `notifications` unsent — the auction still works end to end. Full
+setup (env vars, WhatsApp templates, sandbox testing) is in
+**`WHATSAPP_NOTIFICATIONS_SETUP.md`**.
