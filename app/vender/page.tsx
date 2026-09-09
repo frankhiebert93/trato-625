@@ -8,6 +8,11 @@ import BackButton from '../../components/BackButton';
 
 type Currency = 'MXN' | 'USD';
 type FeeInfo = { cents: number; currency: string };
+type CommissionInfo = {
+    pct: number;
+    minUsd: number | null; maxUsd: number | null;
+    minMxn: number | null; maxMxn: number | null;
+};
 type IntakeEvent = {
     id: string; name: string; starts_at: string; capacity: number;
     committed_count: number; intake_cutoff_at: string | null; viewing_location: string | null;
@@ -40,6 +45,7 @@ export default function VenderPage() {
     const [error, setError] = useState('');
 
     const [fee, setFee] = useState<FeeInfo | null>(null);
+    const [commission, setCommission] = useState<CommissionInfo | null>(null);
     const [intake, setIntake] = useState<IntakeEvent | null | undefined>(undefined);
 
     // No session once the first resolve is in: send the visitor to sign in.
@@ -56,11 +62,18 @@ export default function VenderPage() {
         async function loadFee() {
             const { data } = await supabase
                 .from('app_settings')
-                .select('listing_fee_cents, listing_fee_currency')
+                .select('listing_fee_cents, listing_fee_currency, sale_commission_pct, sale_commission_min_cents_usd, sale_commission_max_cents_usd, sale_commission_min_cents_mxn, sale_commission_max_cents_mxn')
                 .eq('id', 1)
                 .single();
             if (active && data) {
                 setFee({ cents: data.listing_fee_cents as number, currency: data.listing_fee_currency as string });
+                setCommission({
+                    pct: Number(data.sale_commission_pct),
+                    minUsd: data.sale_commission_min_cents_usd as number | null,
+                    maxUsd: data.sale_commission_max_cents_usd as number | null,
+                    minMxn: data.sale_commission_min_cents_mxn as number | null,
+                    maxMxn: data.sale_commission_max_cents_mxn as number | null,
+                });
             }
         }
 
@@ -90,6 +103,20 @@ export default function VenderPage() {
     const feeText = fee
         ? new Intl.NumberFormat('es-MX', { style: 'currency', currency: fee.currency, maximumFractionDigits: 2 }).format(fee.cents / 100)
         : null;
+
+    // Commission estimate for the currently-selected currency (reactive).
+    const commissionText = (() => {
+        if (!commission) return null;
+        const isUsd = currency === 'USD';
+        const min = isUsd ? commission.minUsd : commission.minMxn;
+        const max = isUsd ? commission.maxUsd : commission.maxMxn;
+        const fmt = (cents: number) =>
+            new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100);
+        const clauses: string[] = [];
+        if (min != null) clauses.push(`mín ${fmt(min)}`);
+        if (max != null) clauses.push(`máx ${fmt(max)}`);
+        return `${commission.pct}%${clauses.length ? ` (${clauses.join(' · ')})` : ''}`;
+    })();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -188,9 +215,14 @@ export default function VenderPage() {
             </div>
             <form onSubmit={handleSubmit} className="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl mx-auto">
                 <h1 className="text-2xl font-black text-center mb-2 text-slate-900">Publica tu vehículo</h1>
-                <p className="text-sm text-slate-500 text-center mb-6">
+                <p className="text-sm text-slate-500 text-center mb-1">
                     {feeText ? `Cuota de publicación: ${feeText}` : 'Cargando cuota de publicación…'}
                 </p>
+                {commissionText && (
+                    <p className="text-xs text-slate-400 text-center mb-6">
+                        Si se vende, cobramos una comisión de {commissionText} sobre el precio final.
+                    </p>
+                )}
 
                 {intake === null && (
                     <p className="text-center text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-6">

@@ -77,6 +77,23 @@ type AppSettingsRow = {
     antisnipe_extend_seconds: number;
     default_notify_channel: 'whatsapp' | 'sms';
     terms_text: string;
+    sale_commission_pct: number;
+    sale_commission_min_cents_usd: number | null;
+    sale_commission_max_cents_usd: number | null;
+    sale_commission_min_cents_mxn: number | null;
+    sale_commission_max_cents_mxn: number | null;
+};
+
+type CommissionRow = {
+    vehicle_id: string;
+    title: string;
+    currency: string;
+    sale_price_cents: number;
+    commission_cents: number;
+    status: 'owed' | 'paid' | 'waived';
+    method: 'stripe' | 'transfer' | 'cash' | null;
+    paid_at: string | null;
+    created_at: string;
 };
 
 // vehicles.reserve_cents is intentionally hidden from every client — see the
@@ -90,6 +107,28 @@ type AppSettingsRow = {
 function fmtMXN(pesos: number | null | undefined): string {
     if (pesos == null) return '';
     return fmtPrice(pesos);
+}
+
+// A cents value as a major-unit string for a form input; null/undefined → ''.
+function centsToInput(cents: number | null | undefined): string {
+    return cents == null ? '' : String(cents / 100);
+}
+
+// A form input (major units) back to integer cents, or null when blank.
+function inputToCents(s: string): number | null {
+    const t = s.trim();
+    if (t === '') return null;
+    const n = Math.round(parseFloat(t) * 100);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// A sold lot's commission, formatted for display in its own currency.
+function fmtMoney(cents: number, currency: string): string {
+    try {
+        return new Intl.NumberFormat('es-MX', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100);
+    } catch {
+        return `${(cents / 100).toFixed(0)} ${currency}`;
+    }
 }
 
 // Gates the dashboard on profiles.role === 'admin'. Admin sign-in stays
@@ -154,6 +193,12 @@ function AdminDashboardContent() {
     const [defaultNotifyChannel, setDefaultNotifyChannel] = useState<'whatsapp' | 'sms'>('whatsapp');
     const [termsText, setTermsText] = useState('');
     const [incrementTiersText, setIncrementTiersText] = useState('');
+    // Sale commission (major-unit strings; blank = no floor/cap).
+    const [commissionPct, setCommissionPct] = useState('');
+    const [commMinUsd, setCommMinUsd] = useState('');
+    const [commMaxUsd, setCommMaxUsd] = useState('');
+    const [commMinMxn, setCommMinMxn] = useState('');
+    const [commMaxMxn, setCommMaxMxn] = useState('');
     const [settingsSaving, setSettingsSaving] = useState(false);
     const [settingsStatus, setSettingsStatus] = useState<'idle' | 'saved' | 'error'>('idle');
     const [settingsError, setSettingsError] = useState('');
@@ -175,10 +220,17 @@ function AdminDashboardContent() {
     const [evBusy, setEvBusy] = useState(false);
     const [evError, setEvError] = useState('');
 
+    // --- SALE COMMISSIONS ---
+    const [commissions, setCommissions] = useState<CommissionRow[]>([]);
+    const [commissionsLoading, setCommissionsLoading] = useState(true);
+    const [commBusy, setCommBusy] = useState<Record<string, boolean>>({});
+    const [commError, setCommError] = useState('');
+
     useEffect(() => {
         checkUser();
         initVehicleAuction();
         loadEvents();
+        loadCommissions();
     }, []);
 
     async function checkUser() {
@@ -403,6 +455,14 @@ function AdminDashboardContent() {
             return;
         }
 
+        const commissionPctNum = Number(commissionPct);
+        if (!Number.isFinite(commissionPctNum) || commissionPctNum < 0 || commissionPctNum > 100) {
+            setSettingsSaving(false);
+            setSettingsStatus('error');
+            setSettingsError('Commission percent must be between 0 and 100.');
+            return;
+        }
+
         try {
             const token = await getAdminToken();
             const res = await fetch('/api/admin/settings', {
@@ -416,6 +476,11 @@ function AdminDashboardContent() {
                     default_notify_channel: defaultNotifyChannel,
                     terms_text: termsText,
                     increment_tiers: incrementTiers,
+                    sale_commission_pct: commissionPctNum,
+                    sale_commission_min_cents_usd: inputToCents(commMinUsd),
+                    sale_commission_max_cents_usd: inputToCents(commMaxUsd),
+                    sale_commission_min_cents_mxn: inputToCents(commMinMxn),
+                    sale_commission_max_cents_mxn: inputToCents(commMaxMxn),
                 }),
             });
             const json = await res.json();
@@ -522,6 +587,43 @@ function AdminDashboardContent() {
         }
     }
 
+    async function loadCommissions() {
+        setCommissionsLoading(true);
+        // Admin reads all rows via the sale_commissions_admin_select policy.
+        const { data } = await supabase.from('sale_commissions')
+            .select('vehicle_id, currency, sale_price_cents, commission_cents, status, method, paid_at, created_at')
+            .order('created_at', { ascending: false });
+        const rows = (data ?? []) as Omit<CommissionRow, 'title'>[];
+        const titles: Record<string, string> = {};
+        const ids = rows.map((r) => r.vehicle_id);
+        if (ids.length > 0) {
+            const { data: vs } = await supabase.from('vehicles').select('id, title').in('id', ids);
+            for (const v of (vs ?? []) as { id: string; title: string }[]) titles[v.id] = v.title;
+        }
+        setCommissions(rows.map((r) => ({ ...r, title: titles[r.vehicle_id] ?? r.vehicle_id })));
+        setCommissionsLoading(false);
+    }
+
+    async function commissionAction(action: string, vehicleId: string, method?: string) {
+        setCommError('');
+        setCommBusy((prev) => ({ ...prev, [vehicleId]: true }));
+        try {
+            const token = await getAdminToken();
+            const res = await fetch('/api/admin/commissions', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({ action, vehicle_id: vehicleId, method }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Action failed.');
+            await loadCommissions();
+        } catch (err) {
+            setCommError(err instanceof Error ? err.message : 'Unexpected error.');
+        } finally {
+            setCommBusy((prev) => ({ ...prev, [vehicleId]: false }));
+        }
+    }
+
     // Seed the settings form once app_settings first arrives, and never
     // again — same render-phase seed-once pattern as app/perfil/page.tsx
     // (adjusting state while rendering, not in an effect), so a later
@@ -535,6 +637,11 @@ function AdminDashboardContent() {
         setDefaultNotifyChannel(appSettings.default_notify_channel);
         setTermsText(appSettings.terms_text ?? '');
         setIncrementTiersText(JSON.stringify(appSettings.increment_tiers ?? {}, null, 2));
+        setCommissionPct(String(appSettings.sale_commission_pct ?? ''));
+        setCommMinUsd(centsToInput(appSettings.sale_commission_min_cents_usd));
+        setCommMaxUsd(centsToInput(appSettings.sale_commission_max_cents_usd));
+        setCommMinMxn(centsToInput(appSettings.sale_commission_min_cents_mxn));
+        setCommMaxMxn(centsToInput(appSettings.sale_commission_max_cents_mxn));
     }
 
     return (
@@ -810,6 +917,51 @@ function AdminDashboardContent() {
                     )}
                 </div>
 
+                {/* --- SECTION 2.5: SALE COMMISSIONS --- */}
+                <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">💵 Sale Commissions</h2>
+                <p className="text-sm text-slate-500 font-medium mb-4">
+                    Seller commissions on sold lots. Mark each paid (transfer/cash) once the seller settles, or waive it. Stripe payments are marked paid automatically.
+                </p>
+                {commError && <p className="text-red-500 text-sm font-bold mb-3">{commError}</p>}
+                <div className="space-y-3 mb-12">
+                    {commissionsLoading ? (
+                        <p className="text-center font-bold text-gray-500">Loading commissions...</p>
+                    ) : commissions.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">No commissions yet.</p>
+                    ) : (
+                        commissions.map((c) => {
+                            const busy = !!commBusy[c.vehicle_id];
+                            const statusClass =
+                                c.status === 'paid' ? 'bg-green-100 text-green-700'
+                                : c.status === 'waived' ? 'bg-gray-100 text-gray-500'
+                                : 'bg-amber-100 text-amber-700';
+                            return (
+                                <div key={c.vehicle_id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-col sm:flex-row sm:items-center gap-3">
+                                    <div className="flex-grow min-w-0">
+                                        <h3 className="font-bold text-slate-900 leading-tight truncate">{c.title}</h3>
+                                        <p className="text-xs text-slate-500">
+                                            Sold {fmtMoney(c.sale_price_cents, c.currency)} · commission <b>{fmtMoney(c.commission_cents, c.currency)}</b>
+                                            <span className={`ml-2 text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${statusClass}`}>{c.status}</span>
+                                            {c.method && ` · ${c.method}`}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0 flex-wrap">
+                                        {c.status === 'owed' ? (
+                                            <>
+                                                <button onClick={() => commissionAction('mark_paid', c.vehicle_id, 'transfer')} disabled={busy} className="bg-blue-50 text-blue-700 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Paid · transfer</button>
+                                                <button onClick={() => commissionAction('mark_paid', c.vehicle_id, 'cash')} disabled={busy} className="bg-blue-50 text-blue-700 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Paid · cash</button>
+                                                <button onClick={() => commissionAction('waive', c.vehicle_id)} disabled={busy} className="bg-gray-100 text-gray-600 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Waive</button>
+                                            </>
+                                        ) : (
+                                            <button onClick={() => commissionAction('reopen', c.vehicle_id)} disabled={busy} className="bg-gray-100 text-gray-600 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Reopen</button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+
                 {/* --- SECTION 3: CONFIGURACIÓN DE SUBASTAS --- */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
                     <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">⚙️ Auction Settings</h2>
@@ -863,6 +1015,50 @@ function AdminDashboardContent() {
                                     onChange={(e) => { setAntisnipeExtendSeconds(e.target.value); setSettingsStatus('idle'); }}
                                     className="w-full border rounded-lg p-2.5 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="border-t border-gray-100 pt-4">
+                            <p className="text-sm font-black text-slate-900">Sale commission (seller pays on a sold lot)</p>
+                            <p className="text-xs text-slate-500 mb-3">
+                                A flat percent of the final price, clamped to a per-currency floor and cap. Leave a floor or cap blank for none. Amounts are in each currency&apos;s major units (e.g. 250 = $250).
+                            </p>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Percent (%)</label>
+                                    <input type="number" inputMode="decimal" min={0} max={100} step="0.01"
+                                        value={commissionPct}
+                                        onChange={(e) => { setCommissionPct(e.target.value); setSettingsStatus('idle'); }}
+                                        className="w-full border rounded-lg p-2 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">USD floor</label>
+                                    <input type="number" inputMode="decimal" min={0} step="0.01" placeholder="none"
+                                        value={commMinUsd}
+                                        onChange={(e) => { setCommMinUsd(e.target.value); setSettingsStatus('idle'); }}
+                                        className="w-full border rounded-lg p-2 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">USD cap</label>
+                                    <input type="number" inputMode="decimal" min={0} step="0.01" placeholder="none"
+                                        value={commMaxUsd}
+                                        onChange={(e) => { setCommMaxUsd(e.target.value); setSettingsStatus('idle'); }}
+                                        className="w-full border rounded-lg p-2 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">MXN floor</label>
+                                    <input type="number" inputMode="decimal" min={0} step="0.01" placeholder="none"
+                                        value={commMinMxn}
+                                        onChange={(e) => { setCommMinMxn(e.target.value); setSettingsStatus('idle'); }}
+                                        className="w-full border rounded-lg p-2 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">MXN cap</label>
+                                    <input type="number" inputMode="decimal" min={0} step="0.01" placeholder="none"
+                                        value={commMaxMxn}
+                                        onChange={(e) => { setCommMaxMxn(e.target.value); setSettingsStatus('idle'); }}
+                                        className="w-full border rounded-lg p-2 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500" />
+                                </div>
                             </div>
                         </div>
 
