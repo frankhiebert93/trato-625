@@ -47,6 +47,14 @@ type SettlementContact = {
   phone: string | null;
 };
 
+// The seller's commission on this lot (RLS returns a row only to the seller).
+type SaleCommission = {
+  currency: string;
+  commission_cents: number;
+  status: 'owed' | 'paid' | 'waived';
+  method: string | null;
+};
+
 // Columns the detail page needs — the same public set the feed uses, plus
 // specs. `reserve_cents` is deliberately never selected; the badge below is
 // derived only from `has_reserve` / `reserve_met`.
@@ -171,6 +179,9 @@ export default function VehicleDetailPage() {
   const [history, setHistory] = useState<BidHistoryRow[]>([]);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [eventInfo, setEventInfo] = useState<{ starts_at: string; viewing_location: string | null } | null>(null);
+  const [commission, setCommission] = useState<SaleCommission | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
+  const [payError, setPayError] = useState('');
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -258,6 +269,40 @@ export default function VehicleDetailPage() {
       });
     return () => { active = false; };
   }, [vehicle?.event_id]);
+
+  // The seller's commission on a sold lot. RLS returns a row only to the seller,
+  // so a non-seller viewer simply gets nothing and the block never renders.
+  useEffect(() => {
+    if (!id || !user || vehicle?.status !== 'sold') return;
+    let active = true;
+    supabase.from('sale_commissions')
+      .select('currency, commission_cents, status, method')
+      .eq('vehicle_id', id)
+      .maybeSingle()
+      .then(({ data }) => { if (active && data) setCommission(data as SaleCommission); });
+    return () => { active = false; };
+  }, [id, user, vehicle?.status]);
+
+  async function payCommission() {
+    setPayError('');
+    setPayBusy(true);
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      const token = s.session?.access_token;
+      if (!token) throw new Error('Inicia sesión de nuevo.');
+      const res = await fetch('/api/commissions/pay', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ vehicle_id: id }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.url) throw new Error(json.error ?? 'No se pudo iniciar el pago.');
+      window.location.href = json.url;
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : 'No se pudo iniciar el pago.');
+      setPayBusy(false);
+    }
+  }
 
   async function toggleWatch() {
     if (!user || watching === null) return;
@@ -548,6 +593,36 @@ export default function VehicleDetailPage() {
               >
                 Contactar por WhatsApp
               </a>
+            )}
+          </div>
+        )}
+
+        {/* Seller's commission on this sale (only the seller ever sees this) */}
+        {commission && (
+          <div className="mt-3.5 rounded-[14px] border-2 border-ink bg-card p-3.5 shadow-hard">
+            <p className="text-[10px] font-black tracking-[.1em] text-muted uppercase">Comisión de la plataforma</p>
+            <p className="font-display text-2xl text-ink">{fmtCents(commission.commission_cents, commission.currency)}</p>
+            {commission.status === 'owed' ? (
+              <>
+                <p className="mt-1 text-[12px] font-semibold text-muted">
+                  Comisión por la venta. Paga con tarjeta, o coordina transferencia o efectivo con el administrador.
+                </p>
+                {payError && <p className="mt-1.5 text-[12px] font-bold text-terracotta">{payError}</p>}
+                <button
+                  type="button"
+                  onClick={payCommission}
+                  disabled={payBusy}
+                  className="press mt-3 inline-block rounded-lg border-2 border-ink bg-terracotta px-4 py-2.5 text-[13px] font-black text-card shadow-hard-sm uppercase disabled:opacity-60"
+                >
+                  {payBusy ? 'Redirigiendo…' : 'Pagar con tarjeta'}
+                </button>
+              </>
+            ) : commission.status === 'paid' ? (
+              <p className="mt-1 text-[13px] font-black text-green uppercase">
+                Pagada{commission.method ? ` · ${commission.method}` : ''}
+              </p>
+            ) : (
+              <p className="mt-1 text-[13px] font-black text-muted uppercase">Condonada</p>
             )}
           </div>
         )}

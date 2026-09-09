@@ -19,8 +19,12 @@ export async function POST(request: Request) {
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as { metadata?: { vehicle_id?: string } };
+    const session = event.data.object as {
+      metadata?: { vehicle_id?: string; commission_vehicle_id?: string };
+    };
     const vehicleId = session.metadata?.vehicle_id;
+    const commissionVehicleId = session.metadata?.commission_vehicle_id;
+
     if (vehicleId) {
       const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
       // Idempotent: only advance an unpaid draft.
@@ -28,6 +32,15 @@ export async function POST(request: Request) {
         .update({ listing_fee_status: 'authorized', status: 'pending_review' })
         .eq('id', vehicleId)
         .eq('listing_fee_status', 'unpaid');
+    }
+
+    if (commissionVehicleId) {
+      const admin = createClient(URL, SERVICE, { auth: { persistSession: false } });
+      // Idempotent: only settle a commission that is still owed.
+      await admin.from('sale_commissions')
+        .update({ status: 'paid', method: 'stripe', paid_at: new Date().toISOString() })
+        .eq('vehicle_id', commissionVehicleId)
+        .eq('status', 'owed');
     }
   }
 
