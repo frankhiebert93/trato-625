@@ -66,7 +66,7 @@ export async function GET(request: Request) {
             let ok = false;
             if (phone) {
                 const result = await sendNotification(
-                    n.channel as NotifyChannel, phone, messageFor(n.kind),
+                    n.channel as NotifyChannel, phone, messageFor(n.kind), n.kind,
                 );
                 ok = result.ok;
             }
