@@ -16,6 +16,11 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '../../../lib/useUser';
 import { fmtPrice } from '../../../lib/i18n';
 import BackButton from '../../../components/BackButton';
+import { buildChannelPost, type ChannelPostKind, type ChannelPostVehicle } from '../../../lib/channelPost';
+
+// The bot's WhatsApp number (digits only) + site URL for generated Channel posts.
+const WHATSAPP_BOT_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_BOT_NUMBER ?? '').replace(/[^0-9]/g, '');
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? '';
 
 // --- Vehicle auction (Plan 4) ---
 type ReviewDraft = {
@@ -94,6 +99,13 @@ type CommissionRow = {
     method: 'stripe' | 'transfer' | 'cash' | null;
     paid_at: string | null;
     created_at: string;
+};
+
+type ChannelPostRow = {
+    id: string;
+    kind: ChannelPostKind;
+    status: 'pending' | 'published' | 'dismissed';
+    vehicle: ChannelPostVehicle;
 };
 
 // vehicles.reserve_cents is intentionally hidden from every client — see the
@@ -226,11 +238,19 @@ function AdminDashboardContent() {
     const [commBusy, setCommBusy] = useState<Record<string, boolean>>({});
     const [commError, setCommError] = useState('');
 
+    // --- CHANNEL POSTS (WhatsApp megaphone) ---
+    const [channelPosts, setChannelPosts] = useState<ChannelPostRow[]>([]);
+    const [channelPostsLoading, setChannelPostsLoading] = useState(true);
+    const [cpBusy, setCpBusy] = useState<Record<string, boolean>>({});
+    const [cpError, setCpError] = useState('');
+    const [cpCopied, setCpCopied] = useState<string>('');
+
     useEffect(() => {
         checkUser();
         initVehicleAuction();
         loadEvents();
         loadCommissions();
+        loadChannelPosts();
     }, []);
 
     async function checkUser() {
@@ -624,6 +644,60 @@ function AdminDashboardContent() {
         }
     }
 
+    async function loadChannelPosts() {
+        setChannelPostsLoading(true);
+        // Admin reads pending posts via channel_posts_admin_select.
+        const { data } = await supabase.from('channel_posts')
+            .select('id, kind, vehicle_id, status')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: false });
+        const rows = (data ?? []) as { id: string; kind: ChannelPostKind; vehicle_id: string; status: 'pending' }[];
+        const ids = rows.map((r) => r.vehicle_id);
+        const vehicles: Record<string, ChannelPostVehicle> = {};
+        if (ids.length > 0) {
+            const { data: vs } = await supabase.from('vehicles')
+                .select('id, public_code, title, make, model, year, currency, current_bid_cents, opening_bid_cents, bid_count')
+                .in('id', ids);
+            for (const v of (vs ?? []) as (ChannelPostVehicle & { id: string })[]) vehicles[v.id] = v;
+        }
+        setChannelPosts(
+            rows
+                .filter((r) => vehicles[r.vehicle_id])
+                .map((r) => ({ id: r.id, kind: r.kind, status: r.status, vehicle: vehicles[r.vehicle_id] })),
+        );
+        setChannelPostsLoading(false);
+    }
+
+    async function channelPostAction(action: string, id: string) {
+        setCpError('');
+        setCpBusy((prev) => ({ ...prev, [id]: true }));
+        try {
+            const token = await getAdminToken();
+            const res = await fetch('/api/admin/channel-posts', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+                body: JSON.stringify({ action, id }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) throw new Error(json.error ?? 'Action failed.');
+            await loadChannelPosts();
+        } catch (err) {
+            setCpError(err instanceof Error ? err.message : 'Unexpected error.');
+        } finally {
+            setCpBusy((prev) => ({ ...prev, [id]: false }));
+        }
+    }
+
+    async function copyChannelPost(id: string, text: string) {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCpCopied(id);
+            setTimeout(() => setCpCopied((cur) => (cur === id ? '' : cur)), 2000);
+        } catch {
+            setCpError('No se pudo copiar. Selecciona y copia el texto manualmente.');
+        }
+    }
+
     // Seed the settings form once app_settings first arrives, and never
     // again — same render-phase seed-once pattern as app/perfil/page.tsx
     // (adjusting state while rendering, not in an effect), so a later
@@ -914,6 +988,44 @@ function AdminDashboardContent() {
                                 </button>
                             </div>
                         ))
+                    )}
+                </div>
+
+                {/* --- SECTION 2.4: WHATSAPP CHANNEL --- */}
+                <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">📢 Canal de WhatsApp</h2>
+                <p className="text-sm text-slate-500 font-medium mb-4">
+                    Publicaciones listas para tu Canal de WhatsApp: copia el texto, pégalo en el Canal y marca como publicado.
+                    {!WHATSAPP_BOT_NUMBER && ' (Configura NEXT_PUBLIC_WHATSAPP_BOT_NUMBER para incluir el enlace de puja.)'}
+                </p>
+                {cpError && <p className="text-red-500 text-sm font-bold mb-3">{cpError}</p>}
+                <div className="space-y-3 mb-12">
+                    {channelPostsLoading ? (
+                        <p className="text-center font-bold text-gray-500">Cargando...</p>
+                    ) : channelPosts.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">No hay publicaciones pendientes.</p>
+                    ) : (
+                        channelPosts.map((p) => {
+                            const busy = !!cpBusy[p.id];
+                            const text = buildChannelPost(p.kind, p.vehicle, { botNumber: WHATSAPP_BOT_NUMBER, siteUrl: SITE_URL });
+                            const kindLabel = p.kind === 'sold' ? 'VENDIDO' : 'NUEVA SUBASTA';
+                            const kindClass = p.kind === 'sold' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
+                            return (
+                                <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${kindClass}`}>{kindLabel}</span>
+                                        <span className="text-xs font-bold text-slate-500 truncate">{p.vehicle.title ?? p.vehicle.public_code}</span>
+                                    </div>
+                                    <pre className="whitespace-pre-wrap break-words text-sm text-slate-800 bg-slate-50 rounded-lg p-3 border border-slate-200 font-sans">{text}</pre>
+                                    <div className="flex gap-2 mt-3 flex-wrap">
+                                        <button onClick={() => copyChannelPost(p.id, text)} disabled={busy} className="bg-slate-900 text-white font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">
+                                            {cpCopied === p.id ? '¡Copiado!' : 'Copiar'}
+                                        </button>
+                                        <button onClick={() => channelPostAction('publish', p.id)} disabled={busy} className="bg-green-50 text-green-700 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Marcar publicado</button>
+                                        <button onClick={() => channelPostAction('dismiss', p.id)} disabled={busy} className="bg-gray-100 text-gray-600 font-bold px-3 py-2 rounded-lg text-xs disabled:opacity-50">Descartar</button>
+                                    </div>
+                                </div>
+                            );
+                        })
                     )}
                 </div>
 
