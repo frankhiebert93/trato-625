@@ -30,6 +30,7 @@ type Vehicle = {
   has_reserve: boolean;
   reserve_met: boolean;
   event_id: string | null;
+  public_code: string | null;
 };
 
 type BidHistoryRow = {
@@ -61,9 +62,13 @@ type SaleCommission = {
 const VEHICLE_COLUMNS =
   'id, title, make, model, year, mileage_km, condition, vin, description, location, ' +
   'photos, currency, opening_bid_cents, current_bid_cents, current_leader_id, bid_count, ' +
-  'status, ends_at, has_reserve, reserve_met, event_id';
+  'status, ends_at, has_reserve, reserve_met, event_id, public_code';
 
 const POLL_MS = 3000;
+
+// The bot's WhatsApp number (digits only) for wa.me deep links. When unset, the
+// "Pujar por WhatsApp" shortcut is simply not rendered.
+const WHATSAPP_BOT_NUMBER = (process.env.NEXT_PUBLIC_WHATSAPP_BOT_NUMBER ?? '').replace(/[^0-9]/g, '');
 
 function fmtCents(cents: number, currency: string): string {
   try {
@@ -453,6 +458,24 @@ export default function VehicleDetailPage() {
         </div>
 
         <h1 className="mt-3.5 font-display text-[22px] leading-tight text-ink">{label}</h1>
+
+        {vehicle.public_code && (
+          <p className="mt-1 text-[11px] font-bold tracking-[.06em] text-muted uppercase">
+            Código {vehicle.public_code}
+          </p>
+        )}
+
+        {/* Bid over WhatsApp — prefills "PUJA <código> " into a chat with the bot. */}
+        {vehicle.public_code && WHATSAPP_BOT_NUMBER && vehicle.status === 'live' && (
+          <a
+            href={`https://wa.me/${WHATSAPP_BOT_NUMBER}?text=${encodeURIComponent(`PUJA ${vehicle.public_code} `)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2.5 flex items-center justify-center gap-2 rounded-lg border-2 border-ink bg-[#25D366] px-3 py-2.5 text-sm font-black text-ink shadow-hard"
+          >
+            💬 Pujar por WhatsApp
+          </a>
+        )}
 
         {/* Price + countdown */}
         <div className="mt-3 flex items-end justify-between gap-2 border-b-2 border-dashed border-muted-border pb-3">
