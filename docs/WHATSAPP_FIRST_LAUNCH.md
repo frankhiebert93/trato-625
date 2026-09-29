@@ -23,7 +23,8 @@ This doc is the ordered go-to-market checklist. It consolidates the three slice 
 | **Cron** | Runs **every minute** (`/api/cron`): intake rotation, go-live, staggered closings, event close, notification dispatch, channel-post queueing. |
 | **Domains** | `www.trato625.com` (primary, verified); apex `trato625.com` 308-redirects to www; `trato-625.vercel.app`. |
 | **Deployment Protection** | ⚠️ **SSO ON for all deployments EXCEPT custom domains.** Public traffic and webhooks must use the custom domain; `*.vercel.app` preview URLs require a Vercel login. |
-| **Supabase migrations applied to prod** | ❓ Not verified here — the migration *files* are deployed, but applying them to the prod DB is a manual step. **Verify before go-live** (see checklist). |
+| **Supabase schema** | ✅ **Verified applied** (2026-09-29, project `rrktmtdncmlqukixpcdm`): every auction + WhatsApp + commission + Plan 9 object exists — `place_bid_for(uuid,int,uuid)` RPC, `vehicles.public_code`, `vehicles.event_id`, `profiles.accepted_terms_at`, `whatsapp_contacts` (1 test row), `channel_posts`, `sale_commissions`. The WhatsApp bot's DB dependencies are all present. |
+| **Migration ledger** | ⚠️ Out of sync with the repo files — `sale_commissions`, `whatsapp_bidding`, `channel_posts` are applied to the DB but **not recorded** in the migration ledger by those names (schema was pushed via SQL/branch, not a recorded migration). Housekeeping only — not a go-live blocker. See "Gotchas". |
 | **Env vars in prod** | ❓ Could not read (Vercel token lacks env-list permission). Check **Vercel → trato-625 → Settings → Environment Variables** directly against the reference table below. |
 
 > Note: a preview branch `claude/user-accounts-bidding-mntrob` has an unmerged
@@ -56,11 +57,11 @@ events, member accounts, commissions, and settings.
 ### A. Infrastructure
 - [ ] **New Twilio account created and upgraded out of trial** (trial only sends to verified numbers).
 - [ ] **Twilio Geo Permissions:** Mexico (+52) enabled for the relevant channels.
-- [ ] **Verify Supabase prod migrations are applied**, especially
-      `20260909120000_whatsapp_bidding.sql` (adds `vehicles.public_code`,
-      `profiles.accepted_terms_at`, `whatsapp_contacts`, `place_bid_for`) and
-      `20260909130000_channel_posts.sql` (adds `channel_posts` + enqueue lines). Paste any
-      missing ones into the Supabase SQL editor.
+- [x] **Supabase schema verified applied** (2026-09-29) — `whatsapp_bidding` and
+      `channel_posts` objects are all present (`place_bid_for`, `vehicles.public_code`,
+      `profiles.accepted_terms_at`, `whatsapp_contacts`, `channel_posts`). No action needed to
+      go live. ⚠️ The migration *ledger* is out of sync with the repo files (see Gotchas) — fix
+      it before relying on `supabase db push`/`db reset` against prod.
 - [ ] **Your account promoted to `role='admin'`** in `profiles`.
 
 ### B. WhatsApp sender (the critical path — replaces SMS-OTP as the blocker)
@@ -170,3 +171,13 @@ Legend: ✅ needed for Phase 1 · ▲ needed only for that channel · ⏸ deferr
 - **Channel posts don't backfill:** only generated from the next go-live/sale onward.
 - **Domain drift:** the Channel doc's examples say `trato625.mx`; the live domain is
   `trato625.com` — use `.com`.
+- **Migration ledger drift:** the prod schema is correct, but the ledger doesn't record the
+  last 3 repo migrations by name. A `supabase db push` may report drift and a `db reset`
+  rebuilds from the repo files (fine on a fresh env). Reconcile with `supabase migration
+  repair` (or record the applied versions) before leaning on the CLI migration flow.
+- **Shared database:** project `rrktmtdncmlqukixpcdm` also contains unrelated `freqtrade_*`
+  objects (a different app). RLS is on, so it's isolated, but be aware this Supabase project
+  isn't dedicated to trato625.
+- **DB ref caveat:** `rrktmtdncmlqukixpcdm` is the ref in local env; Vercel's production
+  `NEXT_PUBLIC_SUPABASE_URL` wasn't readable here. Confirm prod points at the same project (it
+  almost certainly does — this DB holds the live auction + legacy yard-sale schema).
