@@ -24,7 +24,7 @@ This doc is the ordered go-to-market checklist. It consolidates the three slice 
 | **Domains** | `www.trato625.com` (primary, verified); apex `trato625.com` 308-redirects to www; `trato-625.vercel.app`. |
 | **Deployment Protection** | ⚠️ **SSO ON for all deployments EXCEPT custom domains.** Public traffic and webhooks must use the custom domain; `*.vercel.app` preview URLs require a Vercel login. |
 | **Supabase schema** | ✅ **Verified applied** (2026-09-29, project `rrktmtdncmlqukixpcdm`): every auction + WhatsApp + commission + Plan 9 object exists — `place_bid_for(uuid,int,uuid)` RPC, `vehicles.public_code`, `vehicles.event_id`, `profiles.accepted_terms_at`, `whatsapp_contacts` (1 test row), `channel_posts`, `sale_commissions`. The WhatsApp bot's DB dependencies are all present. |
-| **Migration ledger** | ⚠️ Out of sync with the repo files — `sale_commissions`, `whatsapp_bidding`, `channel_posts` are applied to the DB but **not recorded** in the migration ledger by those names (schema was pushed via SQL/branch, not a recorded migration). Housekeeping only — not a go-live blocker. See "Gotchas". |
+| **Migration ledger** | ✅ **Reconciled 2026-09-29.** The 16 repo migrations had been applied under *different* version stamps (via MCP/dashboard), so none of the repo versions were in the ledger. Added all 16 repo `(version, name)` rows as applied (additive, tagged `created_by='claude-reconcile-20260929'`) so `supabase db push`/`migration list` treat them as done. Legacy/test/`freqtrade_*` rows untouched. See "Gotchas". |
 | **Env vars in prod** | ❓ Could not read (Vercel token lacks env-list permission). Check **Vercel → trato-625 → Settings → Environment Variables** directly against the reference table below. |
 
 > Note: a preview branch `claude/user-accounts-bidding-mntrob` has an unmerged
@@ -57,11 +57,11 @@ events, member accounts, commissions, and settings.
 ### A. Infrastructure
 - [ ] **New Twilio account created and upgraded out of trial** (trial only sends to verified numbers).
 - [ ] **Twilio Geo Permissions:** Mexico (+52) enabled for the relevant channels.
-- [x] **Supabase schema verified applied** (2026-09-29) — `whatsapp_bidding` and
-      `channel_posts` objects are all present (`place_bid_for`, `vehicles.public_code`,
-      `profiles.accepted_terms_at`, `whatsapp_contacts`, `channel_posts`). No action needed to
-      go live. ⚠️ The migration *ledger* is out of sync with the repo files (see Gotchas) — fix
-      it before relying on `supabase db push`/`db reset` against prod.
+- [x] **Supabase schema verified applied + ledger reconciled** (2026-09-29) —
+      `whatsapp_bidding`/`channel_posts` objects all present (`place_bid_for`,
+      `vehicles.public_code`, `profiles.accepted_terms_at`, `whatsapp_contacts`,
+      `channel_posts`); the 16 repo migrations are now recorded in the ledger as applied, so
+      `supabase db push` is safe. No action needed to go live.
 - [ ] **Your account promoted to `role='admin'`** in `profiles`.
 
 ### B. WhatsApp sender (the critical path — replaces SMS-OTP as the blocker)
@@ -171,10 +171,12 @@ Legend: ✅ needed for Phase 1 · ▲ needed only for that channel · ⏸ deferr
 - **Channel posts don't backfill:** only generated from the next go-live/sale onward.
 - **Domain drift:** the Channel doc's examples say `trato625.mx`; the live domain is
   `trato625.com` — use `.com`.
-- **Migration ledger drift:** the prod schema is correct, but the ledger doesn't record the
-  last 3 repo migrations by name. A `supabase db push` may report drift and a `db reset`
-  rebuilds from the repo files (fine on a fresh env). Reconcile with `supabase migration
-  repair` (or record the applied versions) before leaning on the CLI migration flow.
+- **Migration ledger (reconciled 2026-09-29):** the 16 repo migrations were applied under
+  different version stamps, so the repo versions were missing from the ledger. Fixed additively
+  by inserting the 16 repo `(version, name)` rows as applied — undo with
+  `delete from supabase_migrations.schema_migrations where created_by='claude-reconcile-20260929';`.
+  `migration list` still shows the original re-stamped rows plus legacy/test/`freqtrade_*` as
+  remote-only history — harmless. Note this DB is **shared** with an unrelated `freqtrade_*` app.
 - **Shared database:** project `rrktmtdncmlqukixpcdm` also contains unrelated `freqtrade_*`
   objects (a different app). RLS is on, so it's isolated, but be aware this Supabase project
   isn't dedicated to trato625.
